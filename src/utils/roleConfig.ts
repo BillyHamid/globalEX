@@ -41,13 +41,25 @@ export const menuItems: MenuItem[] = [
     label: 'Nouveau Transfert',
     path: '/transfers/new',
     icon: 'PlusCircle',
-    roles: ['admin', 'sender_agent'],
+    roles: ['admin', 'sender_agent', 'payer_agent'],
   },
   {
     label: 'Transferts en attente',
     path: '/transfers/pending',
     icon: 'Clock',
     roles: ['admin', 'supervisor', 'payer_agent'],
+  },
+  {
+    label: 'Journal des Transactions',
+    path: '/transactions/journal',
+    icon: 'FileText',
+    roles: ['admin', 'supervisor', 'sender_agent', 'payer_agent'],
+  },
+  {
+    label: 'Stats USA / BF',
+    path: '/transactions/by-country',
+    icon: 'Globe',
+    roles: ['admin', 'supervisor', 'sender_agent', 'payer_agent'],
   },
   {
     label: 'Agents',
@@ -65,7 +77,7 @@ export const menuItems: MenuItem[] = [
     label: 'Expéditeurs',
     path: '/senders',
     icon: 'UserPlus',
-    roles: ['admin', 'supervisor', 'sender_agent'],
+    roles: ['admin', 'supervisor', 'sender_agent', 'payer_agent'],
   },
   {
     label: 'Notifications',
@@ -167,9 +179,13 @@ export const rolePermissions: Record<Role, string[]> = {
     'senders.view',
   ],
   payer_agent: [
+    'transfers.create',
     'transfers.view',
     'transfers.pay',
+    'beneficiaries.create',
     'beneficiaries.view',
+    'senders.create',
+    'senders.view',
   ],
 };
 

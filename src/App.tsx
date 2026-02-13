@@ -14,6 +14,8 @@ import { EmailAlerts } from '@/pages/EmailAlerts';
 // Transfers - GLOBAL EXCHANGE
 import { Transfers } from '@/pages/transfers/Transfers';
 import { NewTransfer } from '@/pages/transfers/NewTransfer';
+import { TransactionJournal } from '@/pages/transactions/TransactionJournal';
+import { CountryStats } from '@/pages/transactions/CountryStats';
 // Accounting
 import { AccountingDashboard } from '@/pages/accounting/AccountingDashboard';
 // Transit
@@ -47,6 +49,8 @@ function AppRoutes() {
         <Route path="transfers" element={<Transfers />} />
         <Route path="transfers/new" element={<NewTransfer />} />
         <Route path="transfers/pending" element={<Transfers />} />
+        <Route path="transactions/journal" element={<TransactionJournal />} />
+        <Route path="transactions/by-country" element={<CountryStats />} />
         
         {/* Users & Settings */}
         <Route path="users" element={<Users />} />

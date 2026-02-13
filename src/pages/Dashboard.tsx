@@ -103,109 +103,109 @@ export const Dashboard = () => {
   const kpis = generateKPIs(user.role);
 
   return (
-    <div className="space-y-8">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-emerald-600 to-teal-700 text-white rounded-3xl p-8 shadow-xl">
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+    <div className="space-y-4 sm:space-y-6 lg:space-y-8">
+      {/* Header - Mobile optimized */}
+      <div className="bg-gradient-to-r from-emerald-600 to-teal-700 text-white rounded-xl sm:rounded-2xl lg:rounded-3xl p-4 sm:p-6 lg:p-8 shadow-xl">
+        <div className="flex flex-col gap-4 sm:gap-6">
           <div>
-            <div className="flex items-center gap-3 mb-2">
-              <Globe className="w-8 h-8" />
-              <h1 className="text-3xl font-bold">GLOBAL EXCHANGE</h1>
+            <div className="flex items-center gap-2 sm:gap-3 mb-1 sm:mb-2">
+              <Globe className="w-6 h-6 sm:w-8 sm:h-8" />
+              <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold">GLOBAL EXCHANGE</h1>
             </div>
-            <p className="text-emerald-100 text-lg">
+            <p className="text-emerald-100 text-sm sm:text-base lg:text-lg">
               Bienvenue, {user.name} - {getRoleLabel(user.role)}
             </p>
           </div>
-          <div className="flex gap-4">
-            <div className="bg-white/20 backdrop-blur-sm rounded-xl p-4 border border-white/30">
-              <p className="text-sm opacity-90">Transferts aujourd'hui</p>
-              <p className="text-2xl font-bold">156</p>
+          <div className="grid grid-cols-2 gap-2 sm:gap-4">
+            <div className="bg-white/20 backdrop-blur-sm rounded-lg sm:rounded-xl p-3 sm:p-4 border border-white/30">
+              <p className="text-xs sm:text-sm opacity-90">Transferts aujourd'hui</p>
+              <p className="text-lg sm:text-xl lg:text-2xl font-bold">156</p>
             </div>
-            <div className="bg-white/20 backdrop-blur-sm rounded-xl p-4 border border-white/30">
-              <p className="text-sm opacity-90">Volume</p>
-              <p className="text-2xl font-bold">$89,500</p>
+            <div className="bg-white/20 backdrop-blur-sm rounded-lg sm:rounded-xl p-3 sm:p-4 border border-white/30">
+              <p className="text-xs sm:text-sm opacity-90">Volume</p>
+              <p className="text-lg sm:text-xl lg:text-2xl font-bold">$89,500</p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* KPIs */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {/* KPIs - Responsive grid */}
+      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 lg:gap-6">
         {kpis.slice(0, 6).map((kpi, idx) => (
           <KPICard key={idx} kpi={kpi} />
         ))}
       </div>
 
       {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 lg:gap-8">
         {/* Transferts Chart */}
-        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-              <ArrowLeftRight className="h-6 w-6 text-emerald-600" />
-              Transferts (6 derniers mois)
+        <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg border border-gray-100 p-4 sm:p-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0 mb-4 sm:mb-6">
+            <h2 className="text-base sm:text-lg lg:text-xl font-bold text-gray-800 flex items-center gap-2">
+              <ArrowLeftRight className="h-5 w-5 sm:h-6 sm:w-6 text-emerald-600 flex-shrink-0" />
+              <span className="truncate">Transferts (6 mois)</span>
             </h2>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
-              <span className="text-sm text-gray-600">Envoyés</span>
-              <div className="w-3 h-3 rounded-full bg-blue-500 ml-3"></div>
-              <span className="text-sm text-gray-600">Payés</span>
+            <div className="flex items-center gap-2 text-xs sm:text-sm">
+              <div className="w-2 h-2 sm:w-3 sm:h-3 rounded-full bg-emerald-500"></div>
+              <span className="text-gray-600">Envoyés</span>
+              <div className="w-2 h-2 sm:w-3 sm:h-3 rounded-full bg-blue-500 ml-2 sm:ml-3"></div>
+              <span className="text-gray-600">Payés</span>
             </div>
           </div>
-          <ResponsiveContainer width="100%" height={300}>
+          <ResponsiveContainer width="100%" height={250}>
             <LineChart data={transfersData}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="month" axisLine={false} tickLine={false} />
-              <YAxis axisLine={false} tickLine={false} />
+              <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 12 }} />
+              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12 }} width={35} />
               <Tooltip
                 contentStyle={{
                   backgroundColor: 'white',
                   borderRadius: '8px',
                   border: '1px solid #e5e7eb',
-                  boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                  boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                  fontSize: '12px'
                 }}
               />
-              <Legend />
               <Line
                 type="monotone"
                 dataKey="envoyés"
                 stroke="#10b981"
-                strokeWidth={3}
-                dot={{ stroke: '#10b981', strokeWidth: 2, r: 4, fill: 'white' }}
-                name="Transferts envoyés"
+                strokeWidth={2}
+                dot={{ stroke: '#10b981', strokeWidth: 2, r: 3, fill: 'white' }}
+                name="Envoyés"
               />
               <Line
                 type="monotone"
                 dataKey="payés"
                 stroke="#3b82f6"
-                strokeWidth={3}
-                dot={{ stroke: '#3b82f6', strokeWidth: 2, r: 4, fill: 'white' }}
-                name="Transferts payés"
+                strokeWidth={2}
+                dot={{ stroke: '#3b82f6', strokeWidth: 2, r: 3, fill: 'white' }}
+                name="Payés"
               />
             </LineChart>
           </ResponsiveContainer>
         </div>
 
         {/* Status Pie Chart */}
-        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-              <CheckCircle className="h-6 w-6 text-emerald-600" />
-              Statut des transferts
+        <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg border border-gray-100 p-4 sm:p-6">
+          <div className="flex items-center justify-between mb-4 sm:mb-6">
+            <h2 className="text-base sm:text-lg lg:text-xl font-bold text-gray-800 flex items-center gap-2">
+              <CheckCircle className="h-5 w-5 sm:h-6 sm:w-6 text-emerald-600 flex-shrink-0" />
+              <span>Statut</span>
             </h2>
-            <div className="bg-emerald-100 text-emerald-800 px-3 py-1 rounded-full text-sm font-medium">
+            <div className="bg-emerald-100 text-emerald-800 px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-medium">
               Total: {statusData.reduce((sum, item) => sum + item.value, 0)}
             </div>
           </div>
           <div className="flex items-center justify-center">
-            <ResponsiveContainer width="100%" height={300}>
+            <ResponsiveContainer width="100%" height={250}>
               <PieChart>
                 <Pie
                   data={statusData}
                   cx="50%"
                   cy="50%"
-                  innerRadius={60}
-                  outerRadius={100}
+                  innerRadius={45}
+                  outerRadius={80}
                   paddingAngle={5}
                   dataKey="value"
                 >
@@ -214,7 +214,7 @@ export const Dashboard = () => {
                   ))}
                 </Pie>
                 <Tooltip />
-                <Legend />
+                <Legend wrapperStyle={{ fontSize: '12px' }} />
               </PieChart>
             </ResponsiveContainer>
           </div>
@@ -222,57 +222,57 @@ export const Dashboard = () => {
       </div>
 
       {/* Recent Transfers & Top Corridors */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 lg:gap-8">
         {/* Recent Transfers */}
-        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
-          <h2 className="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">
-            <Clock className="h-6 w-6 text-amber-600" />
+        <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg border border-gray-100 p-4 sm:p-6">
+          <h2 className="text-base sm:text-lg lg:text-xl font-bold text-gray-800 mb-4 sm:mb-6 flex items-center gap-2">
+            <Clock className="h-5 w-5 sm:h-6 sm:w-6 text-amber-600 flex-shrink-0" />
             Transferts récents
           </h2>
-          <div className="space-y-4">
+          <div className="space-y-3 sm:space-y-4">
             {recentTransfers.map((transfer) => (
-              <div key={transfer.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-sm text-emerald-600 font-semibold">{transfer.id}</span>
+              <div key={transfer.id} className="flex items-start sm:items-center justify-between p-3 sm:p-4 bg-gray-50 rounded-lg sm:rounded-xl hover:bg-gray-100 active:bg-gray-200 transition-colors touch-manipulation">
+                <div className="flex-1 min-w-0">
+                  <div className="flex flex-wrap items-center gap-1 sm:gap-2">
+                    <span className="font-mono text-xs sm:text-sm text-emerald-600 font-semibold">{transfer.id}</span>
                     {getStatusBadge(transfer.status)}
                   </div>
-                  <p className="text-sm text-gray-600 mt-1">
+                  <p className="text-xs sm:text-sm text-gray-600 mt-1 truncate">
                     {transfer.sender} → {transfer.beneficiary}
                   </p>
-                  <p className="text-xs text-gray-400">{transfer.date}</p>
+                  <p className="text-[10px] sm:text-xs text-gray-400">{transfer.date}</p>
                 </div>
-                <div className="text-right">
-                  <p className="text-lg font-bold text-gray-900">{transfer.amount}</p>
+                <div className="text-right ml-2 flex-shrink-0">
+                  <p className="text-sm sm:text-base lg:text-lg font-bold text-gray-900">{transfer.amount}</p>
                 </div>
               </div>
             ))}
           </div>
-          <button className="w-full mt-4 py-2 text-emerald-600 font-medium hover:bg-emerald-50 rounded-lg transition-colors">
+          <button className="w-full mt-3 sm:mt-4 py-2.5 sm:py-2 text-emerald-600 font-medium hover:bg-emerald-50 active:bg-emerald-100 rounded-lg transition-colors touch-manipulation text-sm sm:text-base">
             Voir tous les transferts →
           </button>
         </div>
 
         {/* Top Corridors */}
-        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
-          <h2 className="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">
-            <Globe className="h-6 w-6 text-blue-600" />
+        <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg border border-gray-100 p-4 sm:p-6">
+          <h2 className="text-base sm:text-lg lg:text-xl font-bold text-gray-800 mb-4 sm:mb-6 flex items-center gap-2">
+            <Globe className="h-5 w-5 sm:h-6 sm:w-6 text-blue-600 flex-shrink-0" />
             Corridors principaux
           </h2>
-          <div className="space-y-4">
+          <div className="space-y-3 sm:space-y-4">
             {countryData.map((corridor, idx) => (
-              <div key={idx} className="flex items-center justify-between p-4 bg-gradient-to-r from-gray-50 to-white rounded-xl border border-gray-100">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg flex items-center justify-center text-white font-bold">
+              <div key={idx} className="flex items-center justify-between p-3 sm:p-4 bg-gradient-to-r from-gray-50 to-white rounded-lg sm:rounded-xl border border-gray-100">
+                <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg flex items-center justify-center text-white font-bold text-sm sm:text-base flex-shrink-0">
                     {idx + 1}
                   </div>
-                  <div>
-                    <p className="font-semibold text-gray-900">{corridor.country}</p>
-                    <p className="text-sm text-gray-500">{corridor.count} transferts</p>
+                  <div className="min-w-0">
+                    <p className="font-semibold text-gray-900 text-sm sm:text-base truncate">{corridor.country}</p>
+                    <p className="text-xs sm:text-sm text-gray-500">{corridor.count} transferts</p>
                   </div>
                 </div>
-                <div className="text-right">
-                  <p className="text-lg font-bold text-emerald-600">{corridor.amount}</p>
+                <div className="text-right flex-shrink-0 ml-2">
+                  <p className="text-sm sm:text-base lg:text-lg font-bold text-emerald-600">{corridor.amount}</p>
                 </div>
               </div>
             ))}
@@ -280,29 +280,29 @@ export const Dashboard = () => {
         </div>
       </div>
 
-      {/* Performance Summary */}
-      <div className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-2xl p-6 border border-emerald-100">
-        <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-          <div>
-            <h3 className="text-lg font-semibold text-gray-900">Performance de cette semaine</h3>
-            <p className="text-gray-600 mt-1">Comparaison avec la semaine dernière</p>
+      {/* Performance Summary - Mobile optimized */}
+      <div className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl sm:rounded-2xl p-4 sm:p-6 border border-emerald-100">
+        <div className="flex flex-col gap-4">
+          <div className="text-center sm:text-left">
+            <h3 className="text-base sm:text-lg font-semibold text-gray-900">Performance de cette semaine</h3>
+            <p className="text-gray-600 text-sm mt-1">vs semaine dernière</p>
           </div>
-          <div className="flex items-center gap-6">
-            <div className="text-center">
-              <p className="text-2xl font-bold text-emerald-600">+18%</p>
-              <p className="text-sm text-gray-600">Volume</p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
+            <div className="text-center bg-white/50 rounded-lg sm:rounded-xl p-3">
+              <p className="text-lg sm:text-xl lg:text-2xl font-bold text-emerald-600">+18%</p>
+              <p className="text-xs sm:text-sm text-gray-600">Volume</p>
             </div>
-            <div className="text-center">
-              <p className="text-2xl font-bold text-blue-600">+12%</p>
-              <p className="text-sm text-gray-600">Transferts</p>
+            <div className="text-center bg-white/50 rounded-lg sm:rounded-xl p-3">
+              <p className="text-lg sm:text-xl lg:text-2xl font-bold text-blue-600">+12%</p>
+              <p className="text-xs sm:text-sm text-gray-600">Transferts</p>
             </div>
-            <div className="text-center">
-              <p className="text-2xl font-bold text-amber-600">-15%</p>
-              <p className="text-sm text-gray-600">Temps moyen</p>
+            <div className="text-center bg-white/50 rounded-lg sm:rounded-xl p-3">
+              <p className="text-lg sm:text-xl lg:text-2xl font-bold text-amber-600">-15%</p>
+              <p className="text-xs sm:text-sm text-gray-600">Temps moyen</p>
             </div>
-            <div className="text-center">
-              <p className="text-2xl font-bold text-purple-600">+8%</p>
-              <p className="text-sm text-gray-600">Nouveaux bénéficiaires</p>
+            <div className="text-center bg-white/50 rounded-lg sm:rounded-xl p-3">
+              <p className="text-lg sm:text-xl lg:text-2xl font-bold text-purple-600">+8%</p>
+              <p className="text-xs sm:text-sm text-gray-600">Nouveaux</p>
             </div>
           </div>
         </div>

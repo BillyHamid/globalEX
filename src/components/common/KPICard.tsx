@@ -46,20 +46,20 @@ export const KPICard: React.FC<KPICardProps> = ({ kpi }) => {
   };
 
   return (
-    <div className={`rounded-2xl p-6 shadow-lg transition-all duration-300 hover:shadow-xl ${getBgColor()}`}>
-      <div className="flex items-start justify-between">
-        <div className="flex-1">
-          <p className="text-sm font-medium text-gray-600 mb-2">{kpi.label}</p>
-          <p className="text-3xl font-bold text-gray-900">{kpi.value}</p>
+    <div className={`rounded-xl sm:rounded-2xl p-3 sm:p-4 lg:p-6 shadow-lg transition-all duration-300 hover:shadow-xl active:shadow-md ${getBgColor()}`}>
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex-1 min-w-0">
+          <p className="text-xs sm:text-sm font-medium text-gray-600 mb-1 sm:mb-2 truncate">{kpi.label}</p>
+          <p className="text-lg sm:text-xl lg:text-3xl font-bold text-gray-900 truncate">{kpi.value}</p>
           {kpi.change !== undefined && (
-            <div className="flex items-center gap-2 mt-3">
+            <div className="flex items-center gap-1 sm:gap-2 mt-2 sm:mt-3 flex-wrap">
               {kpi.trend === 'up' ? (
-                <TrendingUp className="w-5 h-5 text-green-600" />
+                <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0" />
               ) : kpi.trend === 'down' ? (
-                <TrendingDown className="w-5 h-5 text-red-600" />
+                <TrendingDown className="w-4 h-4 sm:w-5 sm:h-5 text-red-600 flex-shrink-0" />
               ) : null}
               <span
-                className={`text-sm font-semibold ${
+                className={`text-xs sm:text-sm font-semibold ${
                   kpi.trend === 'up'
                     ? 'text-green-700'
                     : kpi.trend === 'down'
@@ -70,13 +70,13 @@ export const KPICard: React.FC<KPICardProps> = ({ kpi }) => {
                 {kpi.change > 0 ? '+' : ''}
                 {kpi.change}%
               </span>
-              <span className="text-xs text-gray-500">vs période précédente</span>
+              <span className="text-[10px] sm:text-xs text-gray-500 hidden sm:inline">vs précédent</span>
             </div>
           )}
         </div>
         {Icon && (
-          <div className="p-4 bg-white rounded-xl shadow-md">
-            <Icon className={`w-7 h-7 ${getIconColor()}`} />
+          <div className="p-2 sm:p-3 lg:p-4 bg-white rounded-lg sm:rounded-xl shadow-md flex-shrink-0">
+            <Icon className={`w-5 h-5 sm:w-6 lg:w-7 sm:h-6 lg:h-7 ${getIconColor()}`} />
           </div>
         )}
       </div>

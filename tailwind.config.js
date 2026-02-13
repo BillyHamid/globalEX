@@ -6,6 +6,14 @@ export default {
       "./src/**/*.{js,ts,jsx,tsx}",
     ],
     theme: {
+      screens: {
+        'xs': '375px',
+        'sm': '640px',
+        'md': '768px',
+        'lg': '1024px',
+        'xl': '1280px',
+        '2xl': '1536px',
+      },
       extend: {
         colors: {
           /* 🎨 Couleurs système (shadcn / dashboards modernes) */
@@ -28,6 +36,18 @@ export default {
             800: '#075985',
             900: '#0c4a6e',
           },
+        },
+        spacing: {
+          'safe-top': 'env(safe-area-inset-top)',
+          'safe-bottom': 'env(safe-area-inset-bottom)',
+          'safe-left': 'env(safe-area-inset-left)',
+          'safe-right': 'env(safe-area-inset-right)',
+        },
+        minHeight: {
+          'screen-safe': '100dvh',
+        },
+        height: {
+          'screen-safe': '100dvh',
         },
       },
     },

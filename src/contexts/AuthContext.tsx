@@ -1,16 +1,21 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User } from '@/types';
+import { authAPI, setAuthToken, getAuthToken, checkAPIHealth } from '@/services/api';
 
 interface AuthContextType {
   user: User | null;
+  token: string | null;
   login: (email: string, password: string) => Promise<boolean>;
   logout: () => void;
   isAuthenticated: boolean;
+  isLoading: boolean;
+  error: string | null;
+  isBackendAvailable: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Mock users database - GLOBAL EXCHANGE
+// Mock users - fallback when backend is not available
 const MOCK_USERS: User[] = [
   { 
     id: '1', 
@@ -34,8 +39,8 @@ const MOCK_USERS: User[] = [
   },
   { 
     id: '3', 
-    email: 'agent.usa@globalexchange.com', 
-    name: 'John Smith', 
+    email: 'razack@globalexchange.com', 
+    name: 'Zongo Razack', 
     role: 'sender_agent',
     phone: '+1 555 123 4567',
     country: 'USA',
@@ -45,10 +50,10 @@ const MOCK_USERS: User[] = [
   },
   { 
     id: '4', 
-    email: 'agent.burkina@globalexchange.com', 
-    name: 'Amadou Ouédraogo', 
+    email: 'bernadette@globalexchange.com', 
+    name: 'Bernadette Tassembedo', 
     role: 'payer_agent',
-    phone: '+226 70 12 34 56',
+    phone: '+226 70 00 00 01',
     country: 'Burkina Faso',
     agentCode: 'BF-001',
     isActive: true,
@@ -56,34 +61,84 @@ const MOCK_USERS: User[] = [
   },
   { 
     id: '5', 
-    email: 'agent.france@globalexchange.com', 
-    name: 'Pierre Dupont', 
-    role: 'sender_agent',
-    phone: '+33 6 12 34 56 78',
-    country: 'France',
-    agentCode: 'FR-001',
+    email: 'abibata@globalexchange.com', 
+    name: 'Abibata Zougrana', 
+    role: 'payer_agent',
+    phone: '+226 70 00 00 02',
+    country: 'Burkina Faso',
+    agentCode: 'BF-002',
     isActive: true,
-    createdAt: '2024-02-01'
+    createdAt: '2024-01-15'
   },
   { 
     id: '6', 
-    email: 'agent.cote@globalexchange.com', 
-    name: 'Kouassi Yao', 
+    email: 'mohamadi@globalexchange.com', 
+    name: 'Mohamadi Sana', 
     role: 'payer_agent',
-    phone: '+225 07 12 34 56',
-    country: 'Côte d\'Ivoire',
-    agentCode: 'CI-001',
+    phone: '+226 70 00 00 03',
+    country: 'Burkina Faso',
+    agentCode: 'BF-003',
     isActive: true,
-    createdAt: '2024-02-01'
+    createdAt: '2024-01-15'
   },
 ];
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(() => {
-    const stored = localStorage.getItem('user');
-    return stored ? JSON.parse(stored) : null;
-  });
+  const [user, setUser] = useState<User | null>(null);
+  const [token, setToken] = useState<string | null>(() => localStorage.getItem('token'));
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isBackendAvailable, setIsBackendAvailable] = useState(false);
 
+  // Check backend availability and restore session on mount
+  useEffect(() => {
+    const initAuth = async () => {
+      setIsLoading(true);
+      
+      // Check if backend is available
+      const backendUp = await checkAPIHealth();
+      setIsBackendAvailable(backendUp);
+
+      const storedToken = getAuthToken() || localStorage.getItem('token');
+      const storedUser = localStorage.getItem('user');
+
+      if (storedToken && backendUp) {
+        // Update token state
+        setToken(storedToken);
+        setAuthToken(storedToken);
+        
+        // Try to restore session from backend
+        try {
+          const userData = await authAPI.getMe();
+          setUser(userData);
+        } catch (err) {
+          // Token expired or invalid
+          setAuthToken(null);
+          setToken(null);
+          localStorage.removeItem('user');
+          localStorage.removeItem('token');
+          
+          // Fall back to stored user if backend failed after login
+          if (storedUser) {
+            setUser(JSON.parse(storedUser));
+          }
+        }
+      } else if (storedUser) {
+        // Fallback to localStorage user (mock mode)
+        setUser(JSON.parse(storedUser));
+        // Keep the token if it exists
+        if (storedToken) {
+          setToken(storedToken);
+        }
+      }
+
+      setIsLoading(false);
+    };
+
+    initAuth();
+  }, []);
+
+  // Persist user to localStorage
   useEffect(() => {
     if (user) {
       localStorage.setItem('user', JSON.stringify(user));
@@ -92,23 +147,82 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [user]);
 
-  const login = async (email: string, _password: string): Promise<boolean> => {
-    // Mock authentication - any password works for demo
-    const foundUser = MOCK_USERS.find(u => u.email === email);
-    if (foundUser) {
-      setUser(foundUser);
-      return true;
+  const login = async (email: string, password: string): Promise<boolean> => {
+    setError(null);
+    setIsLoading(true);
+
+    try {
+      // Check backend availability
+      const backendUp = await checkAPIHealth();
+      setIsBackendAvailable(backendUp);
+
+      if (backendUp) {
+        // Real API login
+        const { token: authToken, user: userData } = await authAPI.login(email, password);
+        setAuthToken(authToken);
+        setToken(authToken);
+        setUser(userData);
+        setIsLoading(false);
+        return true;
+      } else {
+        // Fallback to mock login
+        console.warn('Backend non disponible - mode demo activé');
+        const foundUser = MOCK_USERS.find(u => u.email === email.toLowerCase());
+        if (foundUser) {
+          setUser(foundUser);
+          setIsLoading(false);
+          return true;
+        }
+        setError('Email ou mot de passe incorrect');
+        setIsLoading(false);
+        return false;
+      }
+    } catch (err: any) {
+      setError(err.message || 'Erreur de connexion');
+      setIsLoading(false);
+      
+      // Try mock login as fallback
+      const foundUser = MOCK_USERS.find(u => u.email === email.toLowerCase());
+      if (foundUser) {
+        console.warn('Fallback to mock login');
+        setUser(foundUser);
+        setError(null);
+        return true;
+      }
+      
+      return false;
     }
-    return false;
   };
 
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem('user');
+  const logout = async () => {
+    try {
+      if (isBackendAvailable) {
+        await authAPI.logout();
+      }
+    } catch (err) {
+      // Ignore logout errors
+    } finally {
+      setUser(null);
+      setToken(null);
+      setAuthToken(null);
+      localStorage.removeItem('user');
+      localStorage.removeItem('token');
+    }
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, isAuthenticated: !!user }}>
+    <AuthContext.Provider 
+      value={{ 
+        user,
+        token,
+        login, 
+        logout, 
+        isAuthenticated: !!user, 
+        isLoading,
+        error,
+        isBackendAvailable
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
