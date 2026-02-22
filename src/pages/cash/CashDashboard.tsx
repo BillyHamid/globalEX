@@ -4,7 +4,7 @@ import { cashAPI } from '@/services/api';
 import { CashEntryModal } from '@/components/cash/CashEntryModal';
 import { CashExpenseModal } from '@/components/cash/CashExpenseModal';
 import { 
-  DollarSign, TrendingUp, TrendingDown, RefreshCw, 
+  DollarSign, TrendingUp, RefreshCw, 
   Loader2, ArrowUpCircle, ArrowDownCircle, FileText,
   Calculator, Users, History, Plus, Minus, Eye
 } from 'lucide-react';

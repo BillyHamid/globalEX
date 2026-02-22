@@ -2,9 +2,8 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { statsAPI } from '@/services/api';
 import { 
-  Globe, Calendar, RefreshCw, TrendingUp, DollarSign,
-  Loader2, XCircle, ArrowUpRight, ArrowDownRight,
-  CheckCircle, Clock, Users
+  Globe, Calendar, RefreshCw, TrendingUp,
+  Loader2, XCircle, ArrowUpRight, ArrowDownRight
 } from 'lucide-react';
 
 interface CountryStats {

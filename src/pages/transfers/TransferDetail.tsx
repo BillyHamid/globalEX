@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { transfersAPI } from '@/services/api';
 import { 
-  ArrowLeft, Eye, Download, Loader2, XCircle, 
+  ArrowLeft, Download, Loader2, XCircle, 
   User, Phone, MapPin, DollarSign, Calendar, FileText, CheckCircle, Clock, Ban
 } from 'lucide-react';
 

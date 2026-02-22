@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { statsAPI, transfersAPI } from '@/services/api';
+import { statsAPI } from '@/services/api';
 import { 
-  FileText, Calendar, Filter, Download, RefreshCw, 
-  DollarSign, TrendingUp, CheckCircle, Clock, Globe,
-  Loader2, XCircle, ArrowLeftRight
+  FileText, Calendar, Download, RefreshCw, 
+  CheckCircle, Clock, Globe,
+  Loader2, XCircle
 } from 'lucide-react';
 
 interface JournalEntry {

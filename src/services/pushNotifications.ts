@@ -94,10 +94,10 @@ export const subscribeToPush = async (token: string): Promise<boolean> => {
       throw new Error('Failed to get VAPID public key');
     }
 
-    // Subscribe to push
+    // Subscribe to push (cast for Push API BufferSource type)
     const subscription = await registration.pushManager.subscribe({
       userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(vapidPublicKey)
+      applicationServerKey: urlBase64ToUint8Array(vapidPublicKey) as BufferSource
     });
 
     // Send subscription to backend

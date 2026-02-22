@@ -97,13 +97,6 @@ const calculateFees = (amount: number, currency: string): number => {
   }
 };
 
-// Générer une référence unique
-const generateReference = (): string => {
-  const year = new Date().getFullYear();
-  const random = Math.floor(Math.random() * 999999).toString().padStart(6, '0');
-  return `GX-${year}-${random}`;
-};
-
 const STEPS = [
   { id: 1, title: 'Expéditeur', icon: User },
   { id: 2, title: 'Bénéficiaire', icon: User },
