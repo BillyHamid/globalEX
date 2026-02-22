@@ -1,39 +1,46 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { MainLayout } from '@/components/Layout/MainLayout';
 import { Login } from '@/pages/Login';
-import { Dashboard } from '@/pages/Dashboard';
-import { Users } from '@/pages/Users';
-import { Roles } from '@/pages/Roles';
-import { Clients } from '@/pages/Clients';
-import { Shipments } from '@/pages/Shipments';
-import { CashManagement } from '@/pages/CashManagement';
-import { Invoicing } from '@/pages/Invoicing';
-import { Reports } from '@/pages/Reports';
-import { EmailAlerts } from '@/pages/EmailAlerts';
-// Transfers - GLOBAL EXCHANGE
-import { Transfers } from '@/pages/transfers/Transfers';
-import { NewTransfer } from '@/pages/transfers/NewTransfer';
-import { TransferDetail } from '@/pages/transfers/TransferDetail';
-import { TransactionJournal } from '@/pages/transactions/TransactionJournal';
-import { CountryStats } from '@/pages/transactions/CountryStats';
-import { CashDashboard } from '@/pages/cash/CashDashboard';
-// Accounting
-import { AccountingDashboard } from '@/pages/accounting/AccountingDashboard';
-// Transit
-import { TransitDashboard } from '@/pages/transit/TransitDashboard';
-import { TransitAgentDashboard } from '@/pages/transit/TransitAgentDashboard';
-// Logistics
-import { LogisticsDashboard } from '@/pages/logistics/LogisticsDashboard';
-import { LogisticsManagerDashboard } from '@/pages/logistics/LogisticsManagerDashboard';
+
+const Dashboard = lazy(() => import('@/pages/Dashboard').then(m => ({ default: m.Dashboard })));
+const Users = lazy(() => import('@/pages/Users').then(m => ({ default: m.Users })));
+const Roles = lazy(() => import('@/pages/Roles').then(m => ({ default: m.Roles })));
+const Clients = lazy(() => import('@/pages/Clients').then(m => ({ default: m.Clients })));
+const Shipments = lazy(() => import('@/pages/Shipments').then(m => ({ default: m.Shipments })));
+const CashManagement = lazy(() => import('@/pages/CashManagement').then(m => ({ default: m.CashManagement })));
+const Invoicing = lazy(() => import('@/pages/Invoicing').then(m => ({ default: m.Invoicing })));
+const Reports = lazy(() => import('@/pages/Reports').then(m => ({ default: m.Reports })));
+const EmailAlerts = lazy(() => import('@/pages/EmailAlerts').then(m => ({ default: m.EmailAlerts })));
+const Transfers = lazy(() => import('@/pages/transfers/Transfers').then(m => ({ default: m.Transfers })));
+const NewTransfer = lazy(() => import('@/pages/transfers/NewTransfer').then(m => ({ default: m.NewTransfer })));
+const TransferDetail = lazy(() => import('@/pages/transfers/TransferDetail').then(m => ({ default: m.TransferDetail })));
+const TransactionJournal = lazy(() => import('@/pages/transactions/TransactionJournal').then(m => ({ default: m.TransactionJournal })));
+const CountryStats = lazy(() => import('@/pages/transactions/CountryStats').then(m => ({ default: m.CountryStats })));
+const CashDashboard = lazy(() => import('@/pages/cash/CashDashboard').then(m => ({ default: m.CashDashboard })));
+const AccountingDashboard = lazy(() => import('@/pages/accounting/AccountingDashboard').then(m => ({ default: m.AccountingDashboard })));
+const TransitDashboard = lazy(() => import('@/pages/transit/TransitDashboard').then(m => ({ default: m.TransitDashboard })));
+const TransitAgentDashboard = lazy(() => import('@/pages/transit/TransitAgentDashboard').then(m => ({ default: m.TransitAgentDashboard })));
+const LogisticsDashboard = lazy(() => import('@/pages/logistics/LogisticsDashboard').then(m => ({ default: m.LogisticsDashboard })));
+const LogisticsManagerDashboard = lazy(() => import('@/pages/logistics/LogisticsManagerDashboard').then(m => ({ default: m.LogisticsManagerDashboard })));
 
 const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
   const { isAuthenticated } = useAuth();
   return isAuthenticated ? <>{children}</> : <Navigate to="/login" />;
 };
 
+function PageFallback() {
+  return (
+    <div className="flex min-h-[200px] items-center justify-center">
+      <div className="h-8 w-8 animate-spin rounded-full border-2 border-emerald-500 border-t-transparent" />
+    </div>
+  );
+}
+
 function AppRoutes() {
   return (
+    <Suspense fallback={<PageFallback />}>
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route
@@ -87,6 +94,7 @@ function AppRoutes() {
         <Route path="logistics-manager" element={<LogisticsManagerDashboard />} />
       </Route>
     </Routes>
+    </Suspense>
   );
 }
 
