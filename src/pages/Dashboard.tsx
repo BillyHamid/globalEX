@@ -93,10 +93,13 @@ export const Dashboard = () => {
   }
 
   if (error) {
+    const isAuthError = error.includes('Session') || error.includes('Token') || error.includes('connecter');
     return (
       <div className="bg-red-50 border border-red-100 rounded-xl p-6 text-center">
         <p className="text-red-700">{error}</p>
-        <p className="text-sm text-gray-600 mt-2">Vérifiez que le backend est démarré.</p>
+        <p className="text-sm text-gray-600 mt-2">
+          {isAuthError ? 'Connectez-vous pour continuer.' : 'Vérifiez que le backend est démarré et accessible.'}
+        </p>
       </div>
     );
   }

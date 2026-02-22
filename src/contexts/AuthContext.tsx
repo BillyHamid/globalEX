@@ -121,25 +121,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const userData = await authAPI.getMe();
           setUser(userData);
         } catch (err) {
-          // Token expired or invalid
+          // Token expiré ou invalide : tout effacer (la redirection /login est gérée dans api.ts)
           setAuthToken(null);
           setToken(null);
+          setUser(null);
           localStorage.removeItem('user');
           localStorage.removeItem('token');
-          
-          // Fall back to stored user if backend failed after login
-          if (storedUser) {
-            setUser(JSON.parse(storedUser));
-          }
         }
-      } else if (storedUser) {
-        // Fallback to localStorage user (mock mode)
+      } else if (storedUser && storedToken) {
+        // Token + user en localStorage (backend peut être indisponible)
         setUser(JSON.parse(storedUser));
-        // Keep the token if it exists
-        if (storedToken) {
-          setToken(storedToken);
-        }
+        setToken(storedToken);
       }
+      // Pas de token valide → user reste null, l'utilisateur sera redirigé vers /login
 
       setIsLoading(false);
     };

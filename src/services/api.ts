@@ -37,6 +37,15 @@ const fetchAPI = async <T>(
 
     // Check if response is ok before trying to parse JSON
     if (!response.ok) {
+      // 401 = token manquant ou expiré → tout effacer et rediriger vers login
+      if (response.status === 401) {
+        setAuthToken(null);
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        window.location.replace(`${window.location.origin}/login`);
+        throw new Error('Session expirée. Veuillez vous reconnecter.');
+      }
+
       // Try to parse error message from response
       let errorMessage = 'Une erreur est survenue';
       let errorDetails = null;
