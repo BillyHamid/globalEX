@@ -14,8 +14,10 @@ import { EmailAlerts } from '@/pages/EmailAlerts';
 // Transfers - GLOBAL EXCHANGE
 import { Transfers } from '@/pages/transfers/Transfers';
 import { NewTransfer } from '@/pages/transfers/NewTransfer';
+import { TransferDetail } from '@/pages/transfers/TransferDetail';
 import { TransactionJournal } from '@/pages/transactions/TransactionJournal';
 import { CountryStats } from '@/pages/transactions/CountryStats';
+import { CashDashboard } from '@/pages/cash/CashDashboard';
 // Accounting
 import { AccountingDashboard } from '@/pages/accounting/AccountingDashboard';
 // Transit
@@ -48,9 +50,13 @@ function AppRoutes() {
         {/* GLOBAL EXCHANGE - Transfers */}
         <Route path="transfers" element={<Transfers />} />
         <Route path="transfers/new" element={<NewTransfer />} />
-        <Route path="transfers/pending" element={<Transfers />} />
+        <Route path="transfers/pending" element={<Navigate to="/transfers?status=pending" replace />} />
+        <Route path="transfers/:id" element={<TransferDetail />} />
         <Route path="transactions/journal" element={<TransactionJournal />} />
         <Route path="transactions/by-country" element={<CountryStats />} />
+        
+        {/* Cash Management */}
+        <Route path="cash" element={<CashDashboard />} />
         
         {/* Users & Settings */}
         <Route path="users" element={<Users />} />
@@ -62,7 +68,6 @@ function AppRoutes() {
         <Route path="beneficiaries" element={<Clients />} />
         <Route path="senders" element={<Clients />} />
         <Route path="shipments" element={<Shipments />} />
-        <Route path="cash" element={<CashManagement />} />
         <Route path="transactions" element={<CashManagement />} />
         <Route path="invoicing" element={<Invoicing />} />
         <Route path="reports" element={<Reports />} />

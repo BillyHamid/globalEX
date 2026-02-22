@@ -22,7 +22,7 @@ export const CountryStats = () => {
   const [bfStats, setBfStats] = useState<CountryStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState<string>(''); // Vide = toutes les dates
   const [refreshing, setRefreshing] = useState(false);
 
   const fetchStats = async (showRefresh = false) => {
@@ -32,7 +32,12 @@ export const CountryStats = () => {
     setError(null);
 
     try {
-      const data = await statsAPI.getStatsByCountry({ date: selectedDate });
+      const params: any = {};
+      // Ne pas envoyer de date si vide (afficher toutes les stats)
+      if (selectedDate) {
+        params.date = selectedDate;
+      }
+      const data = await statsAPI.getStatsByCountry(params);
       setUsaStats(data.usa);
       setBfStats(data.bf);
     } catch (err: any) {
@@ -70,7 +75,17 @@ export const CountryStats = () => {
               value={selectedDate}
               onChange={(e) => setSelectedDate(e.target.value)}
               className="px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              placeholder="Toutes les dates"
             />
+            {selectedDate && (
+              <button
+                onClick={() => setSelectedDate('')}
+                className="px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+                title="Afficher toutes les dates"
+              >
+                Effacer
+              </button>
+            )}
           </div>
           <button
             onClick={() => fetchStats(true)}

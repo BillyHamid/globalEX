@@ -15,6 +15,15 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Custom hook to use auth context
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+};
+
 // Mock users - fallback when backend is not available
 const MOCK_USERS: User[] = [
   { 
@@ -159,6 +168,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (backendUp) {
         // Real API login
         const { token: authToken, user: userData } = await authAPI.login(email, password);
+        
+        // Debug: Log login info
+        console.log('Login successful - User:', userData.name, 'ID:', userData.id, 'Token set:', !!authToken);
+        
         setAuthToken(authToken);
         setToken(authToken);
         setUser(userData);
@@ -226,12 +239,4 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       {children}
     </AuthContext.Provider>
   );
-};
-
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
 };

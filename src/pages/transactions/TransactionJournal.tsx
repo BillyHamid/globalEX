@@ -48,6 +48,10 @@ interface Summary {
   totalReceived: number;
   pendingCount: number;
   paidCount: number;
+  /** Tmount = cumul USA → BF (payés) uniquement */
+  tmountUsd?: number;
+  /** Tfees = frais USA → BF (payés) uniquement */
+  tfeesUsd?: number;
 }
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
@@ -63,7 +67,7 @@ export const TransactionJournal = () => {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState<string>(''); // Vide = toutes les dates
   const [selectedCountry, setSelectedCountry] = useState<string>('all');
   const [refreshing, setRefreshing] = useState(false);
 
@@ -74,7 +78,11 @@ export const TransactionJournal = () => {
     setError(null);
 
     try {
-      const params: any = { date: selectedDate };
+      const params: any = {};
+      // Ne pas envoyer de date si vide (afficher toutes les transactions)
+      if (selectedDate) {
+        params.date = selectedDate;
+      }
       if (selectedCountry !== 'all') {
         params.country = selectedCountry;
       }
@@ -121,7 +129,7 @@ export const TransactionJournal = () => {
             <FileText className="w-7 h-7 text-emerald-600" />
             Journal des Transactions
           </h1>
-          <p className="text-gray-600">Récapitulatif avec totaux cumulatifs (Tmount, Tfees)</p>
+          <p className="text-gray-600">Récapitulatif avec totaux cumulatifs (Tmount, Tfees = USA → BF payés uniquement)</p>
         </div>
         
         <div className="flex items-center gap-2">
@@ -150,7 +158,17 @@ export const TransactionJournal = () => {
               value={selectedDate}
               onChange={(e) => setSelectedDate(e.target.value)}
               className="px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              placeholder="Toutes les dates"
             />
+            {selectedDate && (
+              <button
+                onClick={() => setSelectedDate('')}
+                className="px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+                title="Afficher toutes les dates"
+              >
+                Effacer
+              </button>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <Globe className="w-5 h-5 text-gray-400" />
@@ -175,12 +193,12 @@ export const TransactionJournal = () => {
             <p className="text-2xl font-bold text-gray-900">{summary.totalTransfers}</p>
           </div>
           <div className="bg-blue-50 rounded-xl p-4 border border-blue-100">
-            <p className="text-sm text-blue-600">Tmount</p>
-            <p className="text-2xl font-bold text-blue-700">{summary.totalAmount.toLocaleString()} USD</p>
+            <p className="text-sm text-blue-600">Tmount (USA → BF)</p>
+            <p className="text-2xl font-bold text-blue-700">{(summary.tmountUsd ?? summary.totalAmount).toLocaleString('fr-FR')} USD</p>
           </div>
           <div className="bg-amber-50 rounded-xl p-4 border border-amber-100">
-            <p className="text-sm text-amber-600">Tfees</p>
-            <p className="text-2xl font-bold text-amber-700">{summary.totalFees.toLocaleString()} USD</p>
+            <p className="text-sm text-amber-600">Tfees (USA → BF)</p>
+            <p className="text-2xl font-bold text-amber-700">{(summary.tfeesUsd ?? summary.totalFees).toLocaleString('fr-FR')} USD</p>
           </div>
           <div className="bg-emerald-50 rounded-xl p-4 border border-emerald-100">
             <p className="text-sm text-emerald-600">Total Reçu</p>
@@ -217,7 +235,9 @@ export const TransactionJournal = () => {
       ) : journal.length === 0 ? (
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-12 text-center">
           <FileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-          <p className="text-gray-600 text-lg">Aucune transaction pour cette date</p>
+          <p className="text-gray-600 text-lg">
+            {selectedDate ? 'Aucune transaction pour cette date' : 'Aucune transaction enregistrée'}
+          </p>
         </div>
       ) : (
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">

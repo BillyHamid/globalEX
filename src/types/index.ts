@@ -6,8 +6,8 @@
 export type Role =
   | 'admin'           // Administrateur système
   | 'supervisor'      // Superviseur des opérations
-  | 'sender_agent'    // Agent expéditeur (ex: USA, France)
-  | 'payer_agent';    // Agent payeur (ex: Burkina, Côte d'Ivoire)
+  | 'sender_agent'    // Agent (USA ou BF) - peut créer et payer des transferts
+  | 'payer_agent';    // Agent (USA ou BF) - peut créer et payer des transferts
 
 // Statuts des transferts
 export type TransferStatus =

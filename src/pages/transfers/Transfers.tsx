@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { transfersAPI } from '@/services/api';
 import { DataTable } from '@/components/common/DataTable';
+import { ConfirmTransferModal } from '@/components/transfers/ConfirmTransferModal';
 import { 
   Plus, Search, Filter, ArrowLeftRight, Clock, CheckCircle, 
-  XCircle, Eye, RefreshCw, Download, Loader2, Ban
+  XCircle, Eye, RefreshCw, Download, Loader2, Ban, FileCheck, Trash2
 } from 'lucide-react';
 
 interface TransferItem {
@@ -26,19 +27,33 @@ interface TransferItem {
   };
   amountSent: number;
   currencySent: string;
+  exchangeRate: number;
   amountReceived: number;
   currencyReceived: string;
+  sendMethod?: 'cash' | 'zelle' | 'orange_money' | 'wave' | 'bank_transfer';
   status: 'pending' | 'in_progress' | 'paid' | 'cancelled';
   createdAt: string;
   createdBy: {
     id: string;
     name: string;
+    country?: string;
   };
   paidBy?: {
     id: string;
     name: string;
   };
+  proofFilePath?: string;
+  confirmationComment?: string;
+  confirmedAt?: string;
 }
+
+const SEND_METHOD_CONFIG: Record<string, { label: string; color: string }> = {
+  cash: { label: 'Espèces', color: 'bg-amber-100 text-amber-800 border border-amber-200' },
+  zelle: { label: 'Zelle', color: 'bg-purple-100 text-purple-800 border border-purple-200' },
+  orange_money: { label: 'Orange Money', color: 'bg-orange-100 text-orange-800 border border-orange-200' },
+  wave: { label: 'Wave', color: 'bg-cyan-100 text-cyan-800 border border-cyan-200' },
+  bank_transfer: { label: 'Virement bancaire', color: 'bg-indigo-100 text-indigo-800 border border-indigo-200' },
+};
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
   pending: { label: 'En attente', color: 'bg-amber-100 text-amber-800', icon: Clock },
@@ -50,12 +65,24 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }>
 export const Transfers = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const statusFromUrl = searchParams.get('status');
   const [transfers, setTransfers] = useState<TransferItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>(() => {
+    if (statusFromUrl && ['pending', 'in_progress', 'paid', 'cancelled'].includes(statusFromUrl)) return statusFromUrl;
+    return 'all';
+  });
   const [searchTerm, setSearchTerm] = useState('');
   const [refreshing, setRefreshing] = useState(false);
+  const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean; transferId: string; reference: string } | null>(null);
+
+  // Garder le filtre synchronisé avec l'URL (?status=pending etc.)
+  useEffect(() => {
+    const s = searchParams.get('status');
+    if (s && ['pending', 'in_progress', 'paid', 'cancelled'].includes(s) && statusFilter !== s) setStatusFilter(s);
+  }, [searchParams]);
 
   // Fetch transfers from API
   const fetchTransfers = async (showRefresh = false) => {
@@ -104,16 +131,9 @@ export const Transfers = () => {
     cancelled: transfers.filter(t => t.status === 'cancelled').length,
   };
 
-  // Handle mark as paid
-  const handleMarkAsPaid = async (transferId: string) => {
-    if (!confirm('Confirmer le paiement de ce transfert ?')) return;
-    
-    try {
-      await transfersAPI.markAsPaid(transferId);
-      fetchTransfers(true);
-    } catch (err: any) {
-      alert(err.message || 'Erreur lors du paiement');
-    }
+  // Handle confirm with proof (nouvelle méthode sécurisée)
+  const handleConfirmWithProof = (transferId: string, reference: string) => {
+    setConfirmModal({ isOpen: true, transferId, reference });
   };
 
   // Handle cancel
@@ -126,6 +146,20 @@ export const Transfers = () => {
       fetchTransfers(true);
     } catch (err: any) {
       alert(err.message || 'Erreur lors de l\'annulation');
+    }
+  };
+
+  // Handle delete (admin only)
+  const handleDelete = async (transferId: string, reference: string) => {
+    if (!confirm(`Êtes-vous sûr de vouloir supprimer le transfert ${reference} ?\n\nCette action est irréversible.`)) {
+      return;
+    }
+    
+    try {
+      await transfersAPI.delete(transferId);
+      fetchTransfers(true);
+    } catch (err: any) {
+      alert(err.message || 'Erreur lors de la suppression');
     }
   };
 
@@ -176,10 +210,58 @@ export const Transfers = () => {
       ),
     },
     {
+      header: 'Mode de paiement',
+      accessor: 'sendMethod' as keyof TransferItem,
+      render: (value: string) => {
+        const config = value ? SEND_METHOD_CONFIG[value] : null;
+        if (!config) return <span className="text-gray-400 text-sm">—</span>;
+        return (
+          <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold ${config.color}`}>
+            {config.label}
+          </span>
+        );
+      },
+    },
+    {
+      header: 'Taux du jour',
+      accessor: 'exchangeRate' as keyof TransferItem,
+      render: (value: number, row: TransferItem) => {
+        const isBFtoUSA = row.sender.country === 'BFA' && row.beneficiary.country === 'USA';
+        if (isBFtoUSA) {
+          // Pour BF → USA, afficher le taux inverse (1 XOF = X USD)
+          const inverseRate = (1 / value).toFixed(4);
+          return (
+            <span className="text-sm text-gray-700">
+              1 XOF = {inverseRate} {row.currencyReceived}
+            </span>
+          );
+        } else {
+          // Pour USA → BF, afficher normalement (1 USD = X XOF)
+          return (
+            <span className="text-sm text-gray-700">
+              1 {row.currencySent} = {value.toLocaleString()} {row.currencyReceived}
+            </span>
+          );
+        }
+      },
+    },
+    {
       header: 'À remettre',
       accessor: 'amountReceived' as keyof TransferItem,
-      render: (value: number) => (
-        <span className="font-bold text-emerald-600">{value.toLocaleString()} XOF</span>
+      render: (value: number, row: TransferItem) => (
+        <span className="font-bold text-emerald-600">{value.toLocaleString()} {row.currencyReceived || 'XOF'}</span>
+      ),
+    },
+    {
+      header: 'Agent',
+      accessor: 'createdBy' as keyof TransferItem,
+      render: (_value: any, row: TransferItem) => (
+        <div>
+          <p className="font-medium text-gray-900">{row.createdBy?.name ?? '—'}</p>
+          {row.paidBy && (
+            <p className="text-xs text-gray-500" title="Payé par">Payé par: {row.paidBy.name}</p>
+          )}
+        </div>
       ),
     },
     {
@@ -205,35 +287,88 @@ export const Transfers = () => {
     },
     {
       header: 'Actions',
-      accessor: (row: TransferItem) => (
-        <div className="flex items-center gap-1">
-          <button 
-            className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-            title="Voir détails"
-            onClick={() => navigate(`/transfers/${row.id}`)}
-          >
-            <Eye className="w-4 h-4" />
-          </button>
-          {row.status === 'pending' && (user?.role === 'payer_agent' || user?.role === 'admin') && (
+      accessor: 'id' as keyof TransferItem,
+      render: (_value: any, row: TransferItem) => {
+        // Vérifier si l'utilisateur peut confirmer ce transfert
+        // Si l'agent créateur est du BF, seul un agent USA peut confirmer
+        // Si l'agent créateur est des USA, seul un agent BF peut confirmer
+        const creatorCountry = row.createdBy?.country;
+        const userCountry = user?.country;
+        
+        const canConfirmByRole = row.status === 'pending' && 
+          (user?.role === 'sender_agent' || user?.role === 'payer_agent' || user?.role === 'admin' || user?.role === 'supervisor');
+        
+        let canConfirmByCountry = true;
+        if (canConfirmByRole && creatorCountry && userCountry && (user?.role !== 'admin' && user?.role !== 'supervisor')) {
+          // Vérifier que l'utilisateur est du pays opposé
+          const isCreatorBF = creatorCountry === 'BFA' || creatorCountry === 'Burkina Faso';
+          const isCreatorUSA = creatorCountry === 'USA' || creatorCountry === 'États-Unis';
+          const isUserBF = userCountry === 'BFA' || userCountry === 'Burkina Faso';
+          const isUserUSA = userCountry === 'USA' || userCountry === 'États-Unis';
+          
+          if (isCreatorBF && !isUserUSA) {
+            canConfirmByCountry = false;
+          } else if (isCreatorUSA && !isUserBF) {
+            canConfirmByCountry = false;
+          }
+        }
+        
+        const canConfirm = canConfirmByRole && canConfirmByCountry;
+        
+        return (
+          <div className="flex items-center gap-1">
             <button 
-              className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
-              title="Marquer comme payé"
-              onClick={() => handleMarkAsPaid(row.id)}
+              className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+              title="Voir détails"
+              onClick={() => navigate(`/transfers/${row.id}`)}
             >
-              <CheckCircle className="w-4 h-4" />
+              <Eye className="w-4 h-4" />
             </button>
-          )}
-          {row.status === 'pending' && (user?.role === 'admin' || user?.role === 'supervisor') && (
-            <button 
-              className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-              title="Annuler"
-              onClick={() => handleCancel(row.id)}
-            >
-              <Ban className="w-4 h-4" />
-            </button>
-          )}
-        </div>
-      ),
+            {canConfirm && (
+              <button 
+                className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors border border-emerald-200 bg-emerald-50"
+                title="Confirmer avec preuve (obligatoire)"
+                onClick={() => handleConfirmWithProof(row.id, row.reference)}
+              >
+                <FileCheck className="w-4 h-4" />
+              </button>
+            )}
+            {row.proofFilePath && (
+              <button 
+                className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                title="Voir la preuve"
+                onClick={async () => {
+                  try {
+                    await transfersAPI.downloadProof(row.id);
+                  } catch (err: any) {
+                    alert(err.message || 'Erreur lors du téléchargement');
+                  }
+                }}
+              >
+                <Eye className="w-4 h-4" />
+              </button>
+            )}
+            {row.status === 'pending' && (user?.role === 'admin' || user?.role === 'supervisor') && (
+              <button 
+                className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                title="Annuler"
+                onClick={() => handleCancel(row.id)}
+              >
+                <Ban className="w-4 h-4" />
+              </button>
+            )}
+            {user?.role === 'admin' && (
+              <button 
+                className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                title="Supprimer (admin uniquement)"
+                onClick={() => handleDelete(row.id, row.reference)}
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        );
+      },
     },
   ];
 
@@ -362,9 +497,23 @@ export const Transfers = () => {
           )}
         </div>
       ) : (
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-x-auto max-w-full">
           <DataTable data={filteredTransfers} columns={columns} />
         </div>
+      )}
+
+      {/* Modal de confirmation avec preuve */}
+      {confirmModal && (
+        <ConfirmTransferModal
+          transferId={confirmModal.transferId}
+          transferReference={confirmModal.reference}
+          isOpen={confirmModal.isOpen}
+          onClose={() => setConfirmModal(null)}
+          onSuccess={() => {
+            fetchTransfers(true);
+            setConfirmModal(null);
+          }}
+        />
       )}
     </div>
   );

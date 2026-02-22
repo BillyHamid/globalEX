@@ -21,10 +21,13 @@ const fetchAPI = async <T>(
   options: RequestInit = {}
 ): Promise<T> => {
   const headers: HeadersInit = {
-    'Content-Type': 'application/json',
     ...(authToken && { Authorization: `Bearer ${authToken}` }),
     ...options.headers,
   };
+  // Ne pas fixer Content-Type pour FormData (le navigateur ajoute multipart boundary)
+  if (!(options.body instanceof FormData)) {
+    (headers as Record<string, string>)['Content-Type'] = 'application/json';
+  }
 
   try {
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
@@ -239,13 +242,76 @@ export const transfersAPI = {
     });
     return response.data;
   },
+
+  confirmWithProof: async (id: string, proofFile: File, comment?: string) => {
+    const formData = new FormData();
+    formData.append('proof_file', proofFile);
+    if (comment) {
+      formData.append('comment', comment);
+    }
+
+    const token = getAuthToken();
+    const response = await fetch(`${API_BASE_URL}/transfers/${id}/confirm`, {
+      method: 'POST',
+      headers: {
+        ...(token && { Authorization: `Bearer ${token}` }),
+        // Ne pas mettre Content-Type pour FormData, le navigateur le fait automatiquement
+      },
+      body: formData,
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || 'Erreur lors de la confirmation');
+    }
+
+    return data;
+  },
+
+  delete: async (id: string) => {
+    await fetchAPI(`/transfers/${id}`, { method: 'DELETE' });
+  },
+
+  downloadProof: async (id: string): Promise<void> => {
+    const token = getAuthToken();
+    const response = await fetch(`${API_BASE_URL}/transfers/${id}/proof`, {
+      headers: {
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Erreur lors du téléchargement');
+    }
+
+    // Obtenir le nom du fichier depuis les headers
+    const contentDisposition = response.headers.get('Content-Disposition');
+    let filename = 'proof.pdf';
+    if (contentDisposition) {
+      const matches = /filename="(.+)"/.exec(contentDisposition);
+      if (matches) filename = matches[1];
+    }
+
+    // Créer un blob et télécharger
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+  },
 };
 
 // ==========================================
 // BENEFICIARIES API
 // ==========================================
 export const beneficiariesAPI = {
-  getAll: async (params?: { search?: string; page?: number; limit?: number }) => {
+  getAll: async (params?: { search?: string; country?: string; page?: number; limit?: number }) => {
     const queryString = params ? '?' + new URLSearchParams(params as any).toString() : '';
     const response = await fetchAPI<{ success: boolean; data: any[]; pagination: any }>(
       `/beneficiaries${queryString}`
@@ -290,7 +356,7 @@ export const beneficiariesAPI = {
 // SENDERS API
 // ==========================================
 export const sendersAPI = {
-  getAll: async (params?: { search?: string; page?: number; limit?: number }) => {
+  getAll: async (params?: { search?: string; country?: string; page?: number; limit?: number }) => {
     const queryString = params ? '?' + new URLSearchParams(params as any).toString() : '';
     const response = await fetchAPI<{ success: boolean; data: any[]; pagination: any }>(
       `/senders${queryString}`
@@ -364,6 +430,145 @@ export const statsAPI = {
 // ==========================================
 // HEALTH CHECK
 // ==========================================
+// ==========================================
+// CASH API (Gestion de caisse)
+// ==========================================
+export const cashAPI = {
+  getDashboard: async () => {
+    const response = await fetchAPI<{
+      success: boolean;
+      data: {
+        accounts: {
+          usa: { name: string; currency: string; balance: number; formattedBalance: string };
+          burkina: { name: string; currency: string; balance: number; formattedBalance: string };
+        };
+        totals: {
+          tmountUSD: number;
+          tfeesUSD: number;
+          tmountXOF: number;
+          tfeesXOF: number;
+          totalPaidTransfers: number;
+        };
+        profit: {
+          totalUSD: number;
+          formattedTotal: string;
+          partnerShareUSD: number;
+          formattedPartnerShare: string;
+        };
+        recentEntries: Array<{
+          id: string;
+          accountName: string;
+          transactionId: string | null;
+          transferReference: string | null;
+          type: 'DEBIT' | 'CREDIT';
+          amount: number;
+          currency: string;
+          description: string;
+          proofFilePath?: string;
+          createdBy: string | null;
+          createdAt: string;
+        }>;
+      };
+    }>('/cash/dashboard');
+    return response.data;
+  },
+
+  getLedgerHistory: async (accountName: string, limit = 50) => {
+    const response = await fetchAPI<{
+      success: boolean;
+      data: Array<{
+        id: string;
+        accountName: string;
+        transactionId: string | null;
+        transferReference: string | null;
+        type: 'DEBIT' | 'CREDIT';
+        amount: number;
+        currency: string;
+        description: string;
+        createdBy: string | null;
+        createdAt: string;
+      }>;
+    }>(`/cash/ledger/${accountName}?limit=${limit}`);
+    return response.data;
+  },
+
+  addEntry: async (accountName: string, amount: number, description: string, proofFile: File) => {
+    const formData = new FormData();
+    formData.append('accountName', accountName);
+    formData.append('amount', String(amount));
+    formData.append('description', description);
+    formData.append('proof_file', proofFile);
+    const response = await fetchAPI<{
+      success: boolean;
+      message: string;
+      data: {
+        entry: {
+          id: string;
+          accountName: string;
+          type: string;
+          amount: number;
+          currency: string;
+          description: string;
+          proofFilePath?: string;
+          createdAt: string;
+        };
+        account: {
+          name: string;
+          currency: string;
+          balance: number;
+          formattedBalance: string;
+        };
+      };
+    }>('/cash/entry', {
+      method: 'POST',
+      body: formData,
+    });
+    return response.data;
+  },
+
+  /** Récupère le fichier preuve d'une entrée (pour affichage dans un nouvel onglet) */
+  getEntryProofBlob: async (entryId: string): Promise<Blob> => {
+    const token = getAuthToken();
+    const response = await fetch(`${API_BASE_URL}/cash/entry/${entryId}/proof`, {
+      method: 'GET',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.message || 'Impossible de charger la preuve');
+    }
+    return response.blob();
+  },
+
+  addExpense: async (accountName: string, amount: number, description: string) => {
+    const response = await fetchAPI<{
+      success: boolean;
+      message: string;
+      data: {
+        entry: {
+          id: string;
+          accountName: string;
+          type: string;
+          amount: number;
+          currency: string;
+          description: string;
+          createdAt: string;
+        };
+        account: {
+          name: string;
+          currency: string;
+          balance: number;
+          formattedBalance: string;
+        };
+      };
+    }>('/cash/expense', {
+      method: 'POST',
+      body: JSON.stringify({ accountName, amount, description }),
+    });
+    return response.data;
+  },
+};
+
 export const checkAPIHealth = async (): Promise<boolean> => {
   try {
     const response = await fetch(`${API_BASE_URL}/health`);

@@ -46,7 +46,7 @@ export const MainLayout = () => {
             />
           )}
           <Sidebar />
-          <main className="flex-1 p-3 sm:p-4 md:p-6 w-full lg:w-auto min-h-[calc(100vh-4rem)]">
+          <main className="flex-1 min-w-0 p-3 sm:p-4 md:p-6 w-full lg:w-auto min-h-[calc(100vh-4rem)] overflow-x-auto">
             <Outlet />
           </main>
         </div>

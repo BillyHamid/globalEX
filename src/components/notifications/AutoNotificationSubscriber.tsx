@@ -9,7 +9,7 @@ import {
 
 /**
  * Component that automatically subscribes to push notifications on login
- * Especially important for payer_agents who need to receive transfer alerts
+ * Important for all agents (USA et BF) who need to receive transfer alerts
  */
 export const AutoNotificationSubscriber: React.FC = () => {
   const { isAuthenticated, token, user } = useAuth();

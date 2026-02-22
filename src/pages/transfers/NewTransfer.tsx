@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { transfersAPI } from '@/services/api';
+import { transfersAPI, sendersAPI, beneficiariesAPI } from '@/services/api';
 import { 
   ArrowLeft, ArrowRight, User, Phone, Mail, MapPin, 
   DollarSign, Calculator, CheckCircle, Send, Copy,
@@ -42,35 +42,59 @@ const EXCHANGE_RATES: Record<string, number> = {
   'USD_XOF': 615,
 };
 
-// Frais selon le montant - Only USD (USA to BF only)
-// Structure: 
+// Frais selon le montant
+// Structure pour USD (USA → BF): 
 // - $1-$100: $5
 // - $101-$200: $8
 // - $201-$500: $10
 // - $501-$800: $15
 // - $801-$1000: $20
 // - >$1000: $20 par tranche de $1000
+// Structure pour XOF (BF → USA):
+// - 1-61500 XOF (~$1-$100): 3075 XOF (~$5)
+// - 61501-123000 XOF (~$101-$200): 4920 XOF (~$8)
+// - 123001-307500 XOF (~$201-$500): 6150 XOF (~$10)
+// - 307501-492000 XOF (~$501-$800): 9225 XOF (~$15)
+// - 492001-615000 XOF (~$801-$1000): 12300 XOF (~$20)
+// - >615000 XOF: 12300 XOF par tranche de 615000 XOF (~$20 par $1000)
 const calculateFees = (amount: number, currency: string): number => {
-  // Only USD supported
-  if (currency !== 'USD') {
-    return 5; // Fallback
+  if (currency === 'USD') {
+    // Montants supérieurs à $1000: $20 par tranche de $1000
+    if (amount > 1000) {
+      const thousands = Math.floor(amount / 1000);
+      return thousands * 20; // $20 par tranche de $1000
+    }
+    
+    // Montants <= $1000: utiliser les tranches fixes
+    if (amount >= 1 && amount <= 100) return 5;
+    if (amount >= 101 && amount <= 200) return 8;
+    if (amount >= 201 && amount <= 500) return 10;
+    if (amount >= 501 && amount <= 800) return 15;
+    if (amount >= 801 && amount <= 1000) return 20;
+    
+    // Fallback
+    return 5;
+  } else if (currency === 'XOF') {
+    // Frais en XOF pour BF → USA
+    // Montants supérieurs à 615000 XOF (~$1000): 12300 XOF par tranche de 615000 XOF
+    if (amount > 615000) {
+      const tranches = Math.floor(amount / 615000);
+      return tranches * 12300; // 12300 XOF par tranche (~$20 par $1000)
+    }
+    
+    // Montants <= 615000 XOF: utiliser les tranches fixes en XOF
+    if (amount >= 1 && amount <= 61500) return 3075; // ~$5
+    if (amount >= 61501 && amount <= 123000) return 4920; // ~$8
+    if (amount >= 123001 && amount <= 307500) return 6150; // ~$10
+    if (amount >= 307501 && amount <= 492000) return 9225; // ~$15
+    if (amount >= 492001 && amount <= 615000) return 12300; // ~$20
+    
+    // Fallback
+    return 3075;
+  } else {
+    // Fallback pour autres devises (ne devrait pas arriver)
+    return currency === 'USD' ? 5 : 3075;
   }
-  
-  // Montants supérieurs à $1000: $20 par tranche de $1000
-  if (amount > 1000) {
-    const thousands = Math.floor(amount / 1000);
-    return thousands * 20; // $20 par tranche de $1000
-  }
-  
-  // Montants <= $1000: utiliser les tranches fixes
-  if (amount >= 1 && amount <= 100) return 5;
-  if (amount >= 101 && amount <= 200) return 8;
-  if (amount >= 201 && amount <= 500) return 10;
-  if (amount >= 501 && amount <= 800) return 15;
-  if (amount >= 801 && amount <= 1000) return 20;
-  
-  // Fallback
-  return 5;
 };
 
 // Générer une référence unique
@@ -89,10 +113,12 @@ const STEPS = [
 
 const COUNTRIES_SEND = [
   { code: 'USA', name: 'États-Unis', currency: 'USD', flag: '🇺🇸' },
+  { code: 'BFA', name: 'Burkina Faso', currency: 'XOF', flag: '🇧🇫' },
 ];
 
 const COUNTRIES_RECEIVE = [
   { code: 'BFA', name: 'Burkina Faso', currency: 'XOF', flag: '🇧🇫' },
+  { code: 'USA', name: 'États-Unis', currency: 'USD', flag: '🇺🇸' },
 ];
 
 const SEND_METHODS = [
@@ -103,6 +129,30 @@ const SEND_METHODS = [
   { id: 'bank_transfer', label: 'Virement', icon: Building },
 ];
 
+// Pays d'envoi/réception selon l'agent connecté : agent BF → envoi BF uniquement ; agent USA → envoi USA uniquement
+const isAgentBF = (userCountry: string | undefined) =>
+  !!userCountry &&
+  (userCountry === 'BFA' || userCountry === 'Burkina Faso' || userCountry.toLowerCase().includes('burkina'));
+
+const getDefaultCountriesByAgent = (userCountry: string | undefined) => {
+  const isBF = isAgentBF(userCountry);
+  return {
+    send: isBF ? 'BFA' : 'USA',
+    receive: isBF ? 'USA' : 'BFA',
+  };
+};
+
+// Pour un agent BF : seul BF peut envoyer ; pour un agent USA : seule USA peut envoyer (pas de choix)
+const getSenderCountriesForAgent = (userCountry: string | undefined) =>
+  isAgentBF(userCountry)
+    ? COUNTRIES_SEND.filter((c) => c.code === 'BFA')
+    : COUNTRIES_SEND.filter((c) => c.code === 'USA');
+
+const getReceiverCountriesForAgent = (userCountry: string | undefined) =>
+  isAgentBF(userCountry)
+    ? COUNTRIES_RECEIVE.filter((c) => c.code === 'USA')
+    : COUNTRIES_RECEIVE.filter((c) => c.code === 'BFA');
+
 export const NewTransfer = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -111,13 +161,15 @@ export const NewTransfer = () => {
   const [transactionRef, setTransactionRef] = useState('');
   const [copied, setCopied] = useState(false);
 
-  // État du formulaire
+  const defaultCountries = getDefaultCountriesByAgent(user?.country);
+
+  // État du formulaire : pays d'envoi = pays de l'agent (BF → BF, USA → USA)
   const [sender, setSender] = useState<SenderInfo>({
     firstName: '',
     lastName: '',
     phone: '',
     email: '',
-    country: 'USA',
+    country: defaultCountries.send,
     sendMethod: 'cash',
   });
 
@@ -127,7 +179,7 @@ export const NewTransfer = () => {
     phone: '',
     idType: 'none',
     idNumber: '',
-    country: 'BFA',
+    country: defaultCountries.receive,
     city: '',
   });
 
@@ -140,6 +192,44 @@ export const NewTransfer = () => {
   });
   
   const [feesManuallyEdited, setFeesManuallyEdited] = useState(false);
+
+  // Listes expéditeurs / bénéficiaires depuis la base (pour sélection)
+  const [sendersList, setSendersList] = useState<Array<{ id: string; firstName: string; lastName: string; phone: string; email?: string; country: string }>>([]);
+  const [beneficiariesList, setBeneficiariesList] = useState<Array<{ id: string; firstName: string; lastName: string; phone: string; country: string; city?: string }>>([]);
+  const [loadingSenders, setLoadingSenders] = useState(false);
+  const [loadingBeneficiaries, setLoadingBeneficiaries] = useState(false);
+  const [selectedSenderId, setSelectedSenderId] = useState<string | null>(null);
+  const [selectedBeneficiaryId, setSelectedBeneficiaryId] = useState<string | null>(null);
+
+  // Charger les expéditeurs du pays d'envoi
+  useEffect(() => {
+    if (!sender.country) return;
+    setSelectedSenderId(null);
+    setLoadingSenders(true);
+    sendersAPI.getAll({ country: sender.country, limit: 200 })
+      .then((res) => setSendersList(res.data || []))
+      .catch(() => setSendersList([]))
+      .finally(() => setLoadingSenders(false));
+  }, [sender.country]);
+
+  // Charger les bénéficiaires du pays de réception
+  useEffect(() => {
+    if (!beneficiary.country) return;
+    setSelectedBeneficiaryId(null);
+    setLoadingBeneficiaries(true);
+    beneficiariesAPI.getAll({ country: beneficiary.country, limit: 200 })
+      .then((res) => setBeneficiariesList(res.data || []))
+      .catch(() => setBeneficiariesList([]))
+      .finally(() => setLoadingBeneficiaries(false));
+  }, [beneficiary.country]);
+
+  // Quand l'agent est chargé, appliquer pays d'envoi = pays de l'agent (BF → BF, USA → USA)
+  useEffect(() => {
+    if (!user?.country) return;
+    const { send, receive } = getDefaultCountriesByAgent(user.country);
+    setSender(prev => (prev.country === send ? prev : { ...prev, country: send }));
+    setBeneficiary(prev => (prev.country === receive ? prev : { ...prev, country: receive }));
+  }, [user?.country]);
 
   // Mettre à jour la devise selon le pays d'envoi
   useEffect(() => {
@@ -162,8 +252,29 @@ export const NewTransfer = () => {
     }
   }, [financial.amountSent, financial.currency, feesManuallyEdited]);
 
-  // Calculs
-  const amountReceived = Math.round(financial.amountSent * financial.exchangeRate);
+  // Calculs - tenir compte de la direction du transfert
+  // USA → BF : multiplier (USD * taux = XOF)
+  // BF → USA : diviser (XOF / taux = USD)
+  const isUSAtoBF = sender.country === 'USA' && beneficiary.country === 'BFA';
+  const isBFtoUSA = sender.country === 'BFA' && beneficiary.country === 'USA';
+  
+  let amountReceived: number;
+  let currencyReceived: string;
+  
+  if (isUSAtoBF) {
+    // USA → BF : multiplier
+    amountReceived = Math.round(financial.amountSent * financial.exchangeRate);
+    currencyReceived = 'XOF';
+  } else if (isBFtoUSA) {
+    // BF → USA : diviser
+    amountReceived = Math.round((financial.amountSent / financial.exchangeRate) * 100) / 100; // Arrondir à 2 décimales
+    currencyReceived = 'USD';
+  } else {
+    // Fallback (ne devrait pas arriver)
+    amountReceived = Math.round(financial.amountSent * financial.exchangeRate);
+    currencyReceived = 'XOF';
+  }
+  
   const totalWithFees = financial.amountSent + financial.fees;
 
   // Validation des étapes
@@ -218,7 +329,8 @@ export const NewTransfer = () => {
         amountSent: financial.amountSent,
         currency: financial.currency,
         exchangeRate: financial.exchangeRate,
-        sendMethod: sender.sendMethod
+        sendMethod: sender.sendMethod,
+        currencyReceived: currencyReceived // Passer la devise de réception calculée
       };
       
       // Ajouter les frais personnalisés seulement s'ils diffèrent des frais calculés
@@ -329,6 +441,32 @@ export const NewTransfer = () => {
               </div>
             </div>
 
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
+                Choisir un expéditeur existant (base de données)
+              </label>
+              <select
+                value={selectedSenderId ?? ''}
+                onChange={(e) => {
+                  const id = e.target.value || null;
+                  setSelectedSenderId(id);
+                  if (id) {
+                    const s = sendersList.find((x) => x.id === id);
+                    if (s) setSender({ ...sender, firstName: s.firstName, lastName: s.lastName, phone: s.phone, email: s.email || '', country: sender.country, sendMethod: sender.sendMethod });
+                  }
+                }}
+                disabled={loadingSenders}
+                className="w-full px-3 sm:px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-base bg-white"
+              >
+                <option value="">— Nouveau (saisie manuelle) —</option>
+                {sendersList.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.firstName} {s.lastName} — {s.phone}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
@@ -388,10 +526,10 @@ export const NewTransfer = () => {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 <Globe className="w-4 h-4 inline mr-1" />
-                Pays d'envoi *
+                Pays d'envoi * {user && (isAgentBF(user.country) ? '(Burkina Faso)' : '(États-Unis)')}
               </label>
               <div className="grid grid-cols-1 gap-2 sm:gap-3">
-                {COUNTRIES_SEND.map((country) => (
+                {getSenderCountriesForAgent(user?.country).map((country) => (
                   <button
                     key={country.code}
                     type="button"
@@ -450,6 +588,32 @@ export const NewTransfer = () => {
                 <h2 className="text-lg sm:text-xl font-bold text-gray-900">Informations du bénéficiaire</h2>
                 <p className="text-sm text-gray-500">Personne qui reçoit l'argent</p>
               </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
+                Choisir un bénéficiaire existant (base de données)
+              </label>
+              <select
+                value={selectedBeneficiaryId ?? ''}
+                onChange={(e) => {
+                  const id = e.target.value || null;
+                  setSelectedBeneficiaryId(id);
+                  if (id) {
+                    const b = beneficiariesList.find((x) => x.id === id);
+                    if (b) setBeneficiary({ ...beneficiary, firstName: b.firstName, lastName: b.lastName, phone: b.phone, country: beneficiary.country, city: b.city || '', idType: beneficiary.idType, idNumber: beneficiary.idNumber });
+                  }
+                }}
+                disabled={loadingBeneficiaries}
+                className="w-full px-3 sm:px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-base bg-white"
+              >
+                <option value="">— Nouveau (saisie manuelle) —</option>
+                {beneficiariesList.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.firstName} {b.lastName} — {b.phone} {b.city ? `(${b.city})` : ''}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
@@ -531,7 +695,7 @@ export const NewTransfer = () => {
                 Pays de réception *
               </label>
               <div className="grid grid-cols-1 gap-2 sm:gap-3">
-                {COUNTRIES_RECEIVE.map((country) => (
+                {getReceiverCountriesForAgent(user?.country).map((country) => (
                   <button
                     key={country.code}
                     type="button"
@@ -622,7 +786,7 @@ export const NewTransfer = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
-                  Taux (1 {financial.currency} = X FCFA)
+                  Taux ({sender.country === 'USA' ? `1 ${financial.currency} = X XOF` : `1 XOF = X ${currencyReceived}`})
                 </label>
                 <div className="flex gap-2">
                   <input
@@ -729,10 +893,13 @@ export const NewTransfer = () => {
               <div className="bg-emerald-600 rounded-xl p-4 sm:p-6 text-white">
                 <p className="text-xs sm:text-sm text-emerald-100">Montant à remettre au bénéficiaire</p>
                 <p className="text-2xl sm:text-3xl md:text-4xl font-bold">
-                  {amountReceived.toLocaleString()} <span className="text-lg sm:text-xl">FCFA</span>
+                  {amountReceived.toLocaleString()} <span className="text-lg sm:text-xl">{currencyReceived}</span>
                 </p>
                 <p className="text-xs sm:text-sm text-emerald-100 mt-2">
-                  Taux: 1 {financial.currency} = {financial.exchangeRate.toLocaleString()} FCFA
+                  {isUSAtoBF 
+                    ? `Taux: 1 ${financial.currency} = ${financial.exchangeRate.toLocaleString()} XOF`
+                    : `Taux: 1 XOF = ${(1 / financial.exchangeRate).toFixed(4)} ${currencyReceived}`
+                  }
                 </p>
               </div>
             </div>
@@ -803,7 +970,7 @@ export const NewTransfer = () => {
                 <div>
                   <p className="text-[10px] sm:text-sm text-emerald-100">À remettre</p>
                   <p className="text-sm sm:text-lg md:text-2xl font-bold">{amountReceived.toLocaleString()}</p>
-                  <p className="text-[10px] sm:text-xs text-emerald-200">FCFA</p>
+                  <p className="text-[10px] sm:text-xs text-emerald-200">{currencyReceived}</p>
                 </div>
               </div>
               <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-white/20 text-center">

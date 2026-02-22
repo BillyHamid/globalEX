@@ -23,8 +23,8 @@ const mockRoles: RolePermission[] = roles.map((role, idx) => ({
   permissions: [
     role === 'admin' ? 'Toutes les permissions' :
     role === 'supervisor' ? 'Vue globale, Supervision, Rapports' :
-    role === 'sender_agent' ? 'Création transferts, Gestion bénéficiaires' :
-    'Paiement transferts, Confirmation',
+    (role === 'sender_agent' || role === 'payer_agent') ? 'Création transferts, Paiement transferts, Gestion bénéficiaires' :
+    'Création transferts, Paiement transferts, Gestion bénéficiaires',
   ],
   usersCount: Math.floor(Math.random() * 10) + 1,
 }));

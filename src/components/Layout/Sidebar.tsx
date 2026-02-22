@@ -110,9 +110,9 @@ export const Sidebar = () => {
               <span>Nouveau transfert</span>
             </NavLink>
           )}
-          {user.role === 'payer_agent' && (
+          {(user.role === 'sender_agent' || user.role === 'payer_agent') && (
             <NavLink
-              to="/transfers/pending"
+              to="/transfers?status=pending"
               onClick={handleLinkClick}
               className="flex items-center gap-2 w-full px-4 py-2.5 sm:py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 active:bg-amber-700 transition-colors text-sm font-medium touch-manipulation"
             >

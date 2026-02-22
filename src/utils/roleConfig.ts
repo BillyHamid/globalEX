@@ -8,8 +8,8 @@ export const getRoleLabel = (role: Role): string => {
   const labels: Record<Role, string> = {
     admin: 'Administrateur',
     supervisor: 'Superviseur',
-    sender_agent: 'Agent Expéditeur',
-    payer_agent: 'Agent Payeur',
+    sender_agent: 'Agent',
+    payer_agent: 'Agent',
   };
   return labels[role];
 };
@@ -44,21 +44,15 @@ export const menuItems: MenuItem[] = [
     roles: ['admin', 'sender_agent', 'payer_agent'],
   },
   {
-    label: 'Transferts en attente',
-    path: '/transfers/pending',
-    icon: 'Clock',
-    roles: ['admin', 'supervisor', 'payer_agent'],
-  },
-  {
     label: 'Journal des Transactions',
     path: '/transactions/journal',
     icon: 'FileText',
     roles: ['admin', 'supervisor', 'sender_agent', 'payer_agent'],
   },
   {
-    label: 'Stats USA / BF',
-    path: '/transactions/by-country',
-    icon: 'Globe',
+    label: 'Dashboard Caisse',
+    path: '/cash',
+    icon: 'DollarSign',
     roles: ['admin', 'supervisor', 'sender_agent', 'payer_agent'],
   },
   {
@@ -66,18 +60,6 @@ export const menuItems: MenuItem[] = [
     path: '/agents',
     icon: 'Users',
     roles: ['admin', 'supervisor'],
-  },
-  {
-    label: 'Bénéficiaires',
-    path: '/beneficiaries',
-    icon: 'UserCheck',
-    roles: ['admin', 'supervisor', 'sender_agent', 'payer_agent'],
-  },
-  {
-    label: 'Expéditeurs',
-    path: '/senders',
-    icon: 'UserPlus',
-    roles: ['admin', 'supervisor', 'sender_agent', 'payer_agent'],
   },
   {
     label: 'Notifications',
@@ -108,12 +90,6 @@ export const menuItems: MenuItem[] = [
     path: '/reports',
     icon: 'BarChart3',
     roles: ['admin', 'supervisor'],
-  },
-  {
-    label: 'Statistiques',
-    path: '/statistics',
-    icon: 'PieChart',
-    roles: ['admin', 'supervisor', 'sender_agent', 'payer_agent'],
   },
   {
     label: 'Utilisateurs',
@@ -170,9 +146,11 @@ export const rolePermissions: Record<Role, string[]> = {
     'reports.view',
     'reports.export',
   ],
+  // Tous les agents (USA et BF) peuvent créer des transferts ET marquer comme payé
   sender_agent: [
     'transfers.create',
     'transfers.view',
+    'transfers.pay',
     'beneficiaries.create',
     'beneficiaries.view',
     'senders.create',
