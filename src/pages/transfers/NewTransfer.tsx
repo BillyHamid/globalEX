@@ -340,7 +340,7 @@ export const NewTransfer = () => {
       
       // Vérifier si c'est une erreur de connexion
       if (errorMessage.includes('connecter au serveur') || errorMessage.includes('Failed to fetch')) {
-        alert('❌ Impossible de se connecter au serveur.\n\nVérifiez que le backend est démarré sur le port 5000.\n\nErreur: ' + errorMessage);
+        alert('❌ Impossible de se connecter au serveur.\n\nVérifiez que le backend est démarré et accessible.\n\nErreur: ' + errorMessage);
       } else {
         alert('❌ Erreur: ' + errorMessage);
       }

@@ -1,5 +1,5 @@
 // API Configuration
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://backendglobal-71dp.onrender.com/api';
 
 // Token management
 let authToken: string | null = localStorage.getItem('token');
@@ -65,7 +65,9 @@ const fetchAPI = async <T>(
   } catch (error: any) {
     // Handle network errors (Failed to fetch)
     if (error.message === 'Failed to fetch' || error.name === 'TypeError') {
-      throw new Error('Impossible de se connecter au serveur. Vérifiez que le backend est démarré sur le port 5000.');
+      throw new Error(
+        `Impossible de se connecter au serveur. Vérifiez que le backend est démarré et accessible (API: ${API_BASE_URL}).`
+      );
     }
     // Re-throw other errors
     throw error;
