@@ -68,45 +68,9 @@ export const menuItems: MenuItem[] = [
     roles: ['admin', 'supervisor'],
   },
   {
-    label: 'Transactions',
-    path: '/transactions',
-    icon: 'Receipt',
-    roles: ['admin', 'supervisor'],
-  },
-  {
-    label: 'Taux de change',
-    path: '/exchange-rates',
-    icon: 'TrendingUp',
-    roles: ['admin'],
-  },
-  {
-    label: 'Frais & Commissions',
-    path: '/fees',
-    icon: 'Percent',
-    roles: ['admin'],
-  },
-  {
-    label: 'Rapports',
-    path: '/reports',
-    icon: 'BarChart3',
-    roles: ['admin', 'supervisor'],
-  },
-  {
     label: 'Utilisateurs',
     path: '/users',
     icon: 'Users',
-    roles: ['admin'],
-  },
-  {
-    label: 'Paramètres',
-    path: '/settings',
-    icon: 'Settings',
-    roles: ['admin'],
-  },
-  {
-    label: 'Journal d\'audit',
-    path: '/audit-logs',
-    icon: 'FileText',
     roles: ['admin'],
   },
 ];

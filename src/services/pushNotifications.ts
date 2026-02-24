@@ -1,6 +1,7 @@
 // Push Notification Service for Frontend
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://backendglobal-71dp.onrender.com/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const ngrokHeaders = API_BASE_URL.includes('ngrok') ? { 'ngrok-skip-browser-warning': 'true' } : {};
 
 // Check if push notifications are supported
 export const isPushSupported = (): boolean => {
@@ -43,7 +44,7 @@ export const registerServiceWorker = async (): Promise<ServiceWorkerRegistration
 // Get VAPID public key from backend
 export const getVapidPublicKey = async (): Promise<string | null> => {
   try {
-    const response = await fetch(`${API_BASE_URL}/notifications/vapid-public-key`);
+    const response = await fetch(`${API_BASE_URL}/notifications/vapid-public-key`, { headers: ngrokHeaders });
     const data = await response.json();
     return data.data?.publicKey || null;
   } catch (error) {
@@ -105,7 +106,8 @@ export const subscribeToPush = async (token: string): Promise<boolean> => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
+        'Authorization': `Bearer ${token}`,
+        ...ngrokHeaders
       },
       body: JSON.stringify({ subscription })
     });
@@ -137,7 +139,8 @@ export const unsubscribeFromPush = async (token: string): Promise<boolean> => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token}`,
+          ...ngrokHeaders
         },
         body: JSON.stringify({ endpoint: subscription.endpoint })
       });
@@ -170,7 +173,8 @@ export const sendTestNotification = async (token: string): Promise<boolean> => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
+        'Authorization': `Bearer ${token}`,
+        ...ngrokHeaders
       }
     });
     return response.ok;

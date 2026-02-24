@@ -194,26 +194,42 @@ export const NewTransfer = () => {
   const [selectedSenderId, setSelectedSenderId] = useState<string | null>(null);
   const [selectedBeneficiaryId, setSelectedBeneficiaryId] = useState<string | null>(null);
 
-  // Charger les expéditeurs du pays d'envoi
+  // Charger les expéditeurs du pays d'envoi (avec protection StrictMode + cleanup)
   useEffect(() => {
     if (!sender.country) return;
     setSelectedSenderId(null);
     setLoadingSenders(true);
+    let cancelled = false;
     sendersAPI.getAll({ country: sender.country, limit: 200 })
-      .then((res) => setSendersList(res.data || []))
-      .catch(() => setSendersList([]))
-      .finally(() => setLoadingSenders(false));
+      .then((res) => {
+        if (!cancelled) setSendersList(res.data || []);
+      })
+      .catch(() => {
+        if (!cancelled) setSendersList([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingSenders(false);
+      });
+    return () => { cancelled = true; };
   }, [sender.country]);
 
-  // Charger les bénéficiaires du pays de réception
+  // Charger les bénéficiaires du pays de réception (avec protection StrictMode + cleanup)
   useEffect(() => {
     if (!beneficiary.country) return;
     setSelectedBeneficiaryId(null);
     setLoadingBeneficiaries(true);
+    let cancelled = false;
     beneficiariesAPI.getAll({ country: beneficiary.country, limit: 200 })
-      .then((res) => setBeneficiariesList(res.data || []))
-      .catch(() => setBeneficiariesList([]))
-      .finally(() => setLoadingBeneficiaries(false));
+      .then((res) => {
+        if (!cancelled) setBeneficiariesList(res.data || []);
+      })
+      .catch(() => {
+        if (!cancelled) setBeneficiariesList([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingBeneficiaries(false);
+      });
+    return () => { cancelled = true; };
   }, [beneficiary.country]);
 
   // Quand l'agent est chargé, appliquer pays d'envoi = pays de l'agent (BF → BF, USA → USA)
@@ -335,7 +351,6 @@ export const NewTransfer = () => {
       setTransactionRef(result.reference);
       setCurrentStep(5); // Étape de succès
     } catch (error: any) {
-      console.error('Erreur création transfert:', error);
       const errorMessage = error.message || 'Erreur lors de la création du transfert';
       
       // Vérifier si c'est une erreur de connexion

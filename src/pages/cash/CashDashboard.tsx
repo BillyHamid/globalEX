@@ -6,7 +6,7 @@ import { CashExpenseModal } from '@/components/cash/CashExpenseModal';
 import { 
   DollarSign, TrendingUp, RefreshCw, 
   Loader2, ArrowUpCircle, ArrowDownCircle, FileText,
-  Calculator, Users, History, Plus, Minus, Eye
+  Calculator, History, Plus, Minus, Eye
 } from 'lucide-react';
 
 function ViewProofButton({ entryId }: { entryId: string }) {
@@ -271,7 +271,7 @@ export const CashDashboard = () => {
 
       {/* Totaux et statistiques (masqués pour les agents BF) */}
       {!restrictToBurkina && (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Tmount = solde Caisse USA (évolue avec les mouvements) */}
         <div className="bg-white rounded-xl border border-blue-200 p-4 shadow-sm">
           <div className="flex items-center gap-2 text-gray-600 mb-2">
@@ -294,30 +294,6 @@ export const CashDashboard = () => {
             ${data.totals.tfeesUSD.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </div>
           <p className="text-xs text-gray-500 mt-1">Frais USA → Burkina</p>
-        </div>
-
-        {/* Bénéfice total */}
-        <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
-          <div className="flex items-center gap-2 text-gray-600 mb-2">
-            <TrendingUp className="w-4 h-4 text-emerald-600" />
-            <span className="text-sm font-medium">Bénéfice Total</span>
-          </div>
-          <div className="text-2xl font-bold text-emerald-600">
-            {data.profit.formattedTotal}
-          </div>
-          <p className="text-xs text-gray-500 mt-1">Frais cumulés</p>
-        </div>
-
-        {/* Partage 50/50 */}
-        <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
-          <div className="flex items-center gap-2 text-gray-600 mb-2">
-            <Users className="w-4 h-4 text-purple-600" />
-            <span className="text-sm font-medium">Partage Partenaire</span>
-          </div>
-          <div className="text-2xl font-bold text-purple-600">
-            {data.profit.formattedPartnerShare}
-          </div>
-          <p className="text-xs text-gray-500 mt-1">50% du bénéfice</p>
         </div>
       </div>
       )}

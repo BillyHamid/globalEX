@@ -1,5 +1,5 @@
 // API Configuration
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://backendglobal-71dp.onrender.com/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 // Token management
 let authToken: string | null = localStorage.getItem('token');
@@ -22,6 +22,7 @@ const fetchAPI = async <T>(
 ): Promise<T> => {
   const headers: HeadersInit = {
     ...(authToken && { Authorization: `Bearer ${authToken}` }),
+    ...(API_BASE_URL.includes('ngrok') && { 'ngrok-skip-browser-warning': 'true' }),
     ...options.headers,
   };
   // Ne pas fixer Content-Type pour FormData (le navigateur ajoute multipart boundary)
