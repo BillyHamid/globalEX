@@ -189,10 +189,7 @@ export const CashDashboard = () => {
       {!restrictToBurkina && (
       <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-900">
         <p className="font-medium mb-2">Règles métier</p>
-        <ul className="space-y-1 text-amber-800">
-          <li><strong>Tmount = montant de la Caisse USA.</strong> Quand il y a des mouvements dans la caisse (entrée, dépense, transfert), le Tmount change. USA → Burkina : client donne USD → caisse USA augmente ; paiement au BF → caisse Burkina diminue.</li>
-          <li><strong>Burkina → USA :</strong> Client donne XOF → caisse Burkina augmente ; paiement aux USA → caisse USA diminue.</li>
-        </ul>
+       
       </div>
       )}
 
@@ -329,7 +326,7 @@ export const CashDashboard = () => {
 
       {/* Section BF → USA */}
       <div className="bg-slate-50 rounded-xl border border-slate-200 p-4">
-        <h3 className="text-sm font-semibold text-slate-700 mb-3">Transferts Burkina → USA (hors Tmount)</h3>
+        <h3 className="text-sm font-semibold text-slate-700 mb-3">Transferts Burkina → USA (hor)</h3>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div>
             <p className="text-xs text-slate-500">Envoyés (XOF)</p>
