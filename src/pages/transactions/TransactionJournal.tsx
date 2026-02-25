@@ -38,6 +38,7 @@ interface JournalEntry {
   cumulative: {
     amount: number;
     fees: number;
+    isUsaToBf?: boolean;
   };
 }
 
@@ -249,8 +250,8 @@ export const TransactionJournal = () => {
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Bénéficiaire</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">Montant</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">Frais</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">Tmount</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">Tfees</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase" title="Cumul USA → BF">Tmount</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase" title="Cumul USA → BF">Tfees</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Agent</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Statut</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Date</th>
@@ -279,10 +280,18 @@ export const TransactionJournal = () => {
                         <span className="text-sm text-amber-600 font-medium">{formatCurrency(entry.fees, entry.currencySent)}</span>
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <span className="text-sm font-bold text-blue-600">{entry.cumulative.amount.toLocaleString()}</span>
+                        {entry.cumulative.isUsaToBf ? (
+                          <span className="text-sm font-bold text-blue-600">{entry.cumulative.amount.toLocaleString()}</span>
+                        ) : (
+                          <span className="text-sm text-gray-400">—</span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <span className="text-sm font-bold text-amber-600">{entry.cumulative.fees.toLocaleString()}</span>
+                        {entry.cumulative.isUsaToBf ? (
+                          <span className="text-sm font-bold text-amber-600">{entry.cumulative.fees.toLocaleString()}</span>
+                        ) : (
+                          <span className="text-sm text-gray-400">—</span>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         <div>
