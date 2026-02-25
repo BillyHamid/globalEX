@@ -286,26 +286,29 @@ export const transfersAPI = {
 
   downloadProof: async (id: string): Promise<void> => {
     const token = getAuthToken();
-    const response = await fetch(`${API_BASE_URL}/transfers/${id}/proof`, {
-      headers: {
-        ...(token && { Authorization: `Bearer ${token}` }),
-      },
-    });
+    const headers: HeadersInit = {
+      ...(token && { Authorization: `Bearer ${token}` }),
+      ...(API_BASE_URL.includes('ngrok') && { 'ngrok-skip-browser-warning': 'true' }),
+    };
+    const response = await fetch(`${API_BASE_URL}/transfers/${id}/proof`, { headers });
 
     if (!response.ok) {
-      const error = await response.json();
+      const error = await response.json().catch(() => ({}));
       throw new Error(error.message || 'Erreur lors du téléchargement');
     }
 
-    // Obtenir le nom du fichier depuis les headers
+    const contentType = response.headers.get('Content-Type') || '';
+    if (contentType.includes('application/json')) {
+      throw new Error('Réponse invalide : le fichier n\'a pas été reçu correctement');
+    }
+
     const contentDisposition = response.headers.get('Content-Disposition');
     let filename = 'proof.pdf';
     if (contentDisposition) {
-      const matches = /filename="(.+)"/.exec(contentDisposition);
+      const matches = /filename="([^"]+)"/.exec(contentDisposition);
       if (matches) filename = matches[1];
     }
 
-    // Créer un blob et télécharger
     const blob = await response.blob();
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -547,13 +550,18 @@ export const cashAPI = {
   /** Récupère le fichier preuve d'une entrée (pour affichage dans un nouvel onglet) */
   getEntryProofBlob: async (entryId: string): Promise<Blob> => {
     const token = getAuthToken();
-    const response = await fetch(`${API_BASE_URL}/cash/entry/${entryId}/proof`, {
-      method: 'GET',
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    });
+    const headers: HeadersInit = {
+      ...(token && { Authorization: `Bearer ${token}` }),
+      ...(API_BASE_URL.includes('ngrok') && { 'ngrok-skip-browser-warning': 'true' }),
+    };
+    const response = await fetch(`${API_BASE_URL}/cash/entry/${entryId}/proof`, { headers });
     if (!response.ok) {
       const err = await response.json().catch(() => ({}));
       throw new Error(err.message || 'Impossible de charger la preuve');
+    }
+    const contentType = response.headers.get('Content-Type') || '';
+    if (contentType.includes('application/json')) {
+      throw new Error('Réponse invalide : le fichier n\'a pas été reçu correctement');
     }
     return response.blob();
   },
