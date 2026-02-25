@@ -326,7 +326,7 @@ export const CashDashboard = () => {
 
       {/* Section BF → USA */}
       <div className="bg-slate-50 rounded-xl border border-slate-200 p-4">
-        <h3 className="text-sm font-semibold text-slate-700 mb-3">Transferts Burkina → USA (hor)</h3>
+        <h3 className="text-sm font-semibold text-slate-700 mb-3">Transferts Burkina → USA </h3>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div>
             <p className="text-xs text-slate-500">Envoyés (XOF)</p>
