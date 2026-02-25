@@ -72,12 +72,14 @@ self.addEventListener('notificationclick', (event) => {
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true })
       .then((clientList) => {
+        // Check if there's already a window/tab open
         for (const client of clientList) {
           if (client.url.includes(self.registration.scope) && 'focus' in client) {
             client.navigate(url);
             return client.focus();
           }
         }
+        // If no window is open, open a new one
         if (clients.openWindow) {
           return clients.openWindow(url);
         }

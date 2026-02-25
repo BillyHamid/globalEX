@@ -4,6 +4,9 @@ import path from 'path'
 
 export default defineConfig({
   plugins: [react()],
+  server: {
+    host: true, // Accessible depuis le réseau (ex: http://<ton-IP>:5173)
+  },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),

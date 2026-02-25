@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { transfersAPI, sendersAPI, beneficiariesAPI } from '@/services/api';
+import { transfersAPI, sendersAPI, beneficiariesAPI, exchangeRatesAPI } from '@/services/api';
 import { 
   ArrowLeft, ArrowRight, User, Phone, Mail, MapPin, 
   DollarSign, Calculator, CheckCircle, Send, Copy,
@@ -37,10 +37,8 @@ interface FinancialInfo {
   fees: number;
 }
 
-// Taux de change - Only USA to BF
-const EXCHANGE_RATES: Record<string, number> = {
-  'USD_XOF': 615,
-};
+// Taux de change - fallback si API indisponible
+const FALLBACK_RATE_USD_XOF = 557;
 
 // Frais selon le montant
 // Structure pour USD (USA → BF): 
@@ -179,12 +177,22 @@ export const NewTransfer = () => {
   const [financial, setFinancial] = useState<FinancialInfo>({
     amountSent: 0,
     currency: 'USD',
-    exchangeRate: EXCHANGE_RATES['USD_XOF'],
+    exchangeRate: FALLBACK_RATE_USD_XOF,
     useAutoRate: true,
     fees: 0,
   });
   
   const [feesManuallyEdited, setFeesManuallyEdited] = useState(false);
+  const [liveRateUsdXof, setLiveRateUsdXof] = useState(FALLBACK_RATE_USD_XOF);
+
+  // Récupérer le taux USD/XOF du jour (API)
+  useEffect(() => {
+    let cancelled = false;
+    exchangeRatesAPI.getUsdXof()
+      .then((rate) => { if (!cancelled) setLiveRateUsdXof(rate); })
+      .catch(() => { if (!cancelled) setLiveRateUsdXof(FALLBACK_RATE_USD_XOF); });
+    return () => { cancelled = true; };
+  }, []);
 
   // Listes expéditeurs / bénéficiaires depuis la base (pour sélection)
   const [sendersList, setSendersList] = useState<Array<{ id: string; firstName: string; lastName: string; phone: string; email?: string; country: string }>>([]);
@@ -201,15 +209,9 @@ export const NewTransfer = () => {
     setLoadingSenders(true);
     let cancelled = false;
     sendersAPI.getAll({ country: sender.country, limit: 200 })
-      .then((res) => {
-        if (!cancelled) setSendersList(res.data || []);
-      })
-      .catch(() => {
-        if (!cancelled) setSendersList([]);
-      })
-      .finally(() => {
-        if (!cancelled) setLoadingSenders(false);
-      });
+      .then((res) => { if (!cancelled) setSendersList(res.data || []); })
+      .catch(() => { if (!cancelled) setSendersList([]); })
+      .finally(() => { if (!cancelled) setLoadingSenders(false); });
     return () => { cancelled = true; };
   }, [sender.country]);
 
@@ -220,15 +222,9 @@ export const NewTransfer = () => {
     setLoadingBeneficiaries(true);
     let cancelled = false;
     beneficiariesAPI.getAll({ country: beneficiary.country, limit: 200 })
-      .then((res) => {
-        if (!cancelled) setBeneficiariesList(res.data || []);
-      })
-      .catch(() => {
-        if (!cancelled) setBeneficiariesList([]);
-      })
-      .finally(() => {
-        if (!cancelled) setLoadingBeneficiaries(false);
-      });
+      .then((res) => { if (!cancelled) setBeneficiariesList(res.data || []); })
+      .catch(() => { if (!cancelled) setBeneficiariesList([]); })
+      .finally(() => { if (!cancelled) setLoadingBeneficiaries(false); });
     return () => { cancelled = true; };
   }, [beneficiary.country]);
 
@@ -240,18 +236,17 @@ export const NewTransfer = () => {
     setBeneficiary(prev => (prev.country === receive ? prev : { ...prev, country: receive }));
   }, [user?.country]);
 
-  // Mettre à jour la devise selon le pays d'envoi
+  // Mettre à jour la devise et le taux selon le pays d'envoi
   useEffect(() => {
     const country = COUNTRIES_SEND.find(c => c.code === sender.country);
     if (country) {
-      const rateKey = `${country.currency}_XOF`;
       setFinancial(prev => ({
         ...prev,
         currency: country.currency,
-        exchangeRate: prev.useAutoRate ? (EXCHANGE_RATES[rateKey] || 600) : prev.exchangeRate,
+        exchangeRate: prev.useAutoRate ? liveRateUsdXof : prev.exchangeRate,
       }));
     }
-  }, [sender.country]);
+  }, [sender.country, liveRateUsdXof]);
 
   // Calculer les frais automatiquement (seulement si pas modifié manuellement)
   useEffect(() => {
@@ -351,6 +346,7 @@ export const NewTransfer = () => {
       setTransactionRef(result.reference);
       setCurrentStep(5); // Étape de succès
     } catch (error: any) {
+      console.error('Erreur création transfert:', error);
       const errorMessage = error.message || 'Erreur lors de la création du transfert';
       
       // Vérifier si c'est une erreur de connexion
@@ -811,10 +807,9 @@ export const NewTransfer = () => {
                   <button
                     type="button"
                     onClick={() => {
-                      const rateKey = `${financial.currency}_XOF`;
                       setFinancial({ 
                         ...financial, 
-                        exchangeRate: EXCHANGE_RATES[rateKey] || 600,
+                        exchangeRate: liveRateUsdXof,
                         useAutoRate: true 
                       });
                     }}
@@ -1041,7 +1036,7 @@ export const NewTransfer = () => {
                   setCurrentStep(1);
                   setSender({ firstName: '', lastName: '', phone: '', email: '', country: 'USA', sendMethod: 'cash' });
                   setBeneficiary({ firstName: '', lastName: '', phone: '', idType: 'none', idNumber: '', country: 'BFA', city: '' });
-                  setFinancial({ amountSent: 0, currency: 'USD', exchangeRate: EXCHANGE_RATES['USD_XOF'], useAutoRate: true, fees: 0 });
+                  setFinancial({ amountSent: 0, currency: 'USD', exchangeRate: liveRateUsdXof, useAutoRate: true, fees: 0 });
                   setTransactionRef('');
                 }}
                 className="w-full sm:w-auto px-5 sm:px-6 py-3 bg-emerald-600 text-white rounded-xl font-medium hover:bg-emerald-700 active:bg-emerald-800 transition-colors flex items-center justify-center gap-2 touch-manipulation order-1 sm:order-2"

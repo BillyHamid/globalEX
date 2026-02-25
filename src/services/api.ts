@@ -38,13 +38,12 @@ const fetchAPI = async <T>(
 
     // Check if response is ok before trying to parse JSON
     if (!response.ok) {
-      // 401 = token manquant ou expiré → tout effacer et rediriger vers login
+      // 401 = token manquant ou expiré → déconnecter et rediriger vers login
       if (response.status === 401) {
         setAuthToken(null);
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        window.location.replace(`${window.location.origin}/login`);
-        throw new Error('Session expirée. Veuillez vous reconnecter.');
+        const loginPath = `${window.location.origin}/login`;
+        window.location.href = loginPath;
+        throw new Error('Session expirée ou non connecté. Veuillez vous connecter.');
       }
 
       // Try to parse error message from response
@@ -440,8 +439,15 @@ export const statsAPI = {
 };
 
 // ==========================================
-// HEALTH CHECK
+// EXCHANGE RATES API
 // ==========================================
+export const exchangeRatesAPI = {
+  getUsdXof: async (): Promise<number> => {
+    const response = await fetchAPI<{ success: boolean; data: { USD_XOF: number } }>('/exchange-rates');
+    return response.data?.USD_XOF ?? 557;
+  },
+};
+
 // ==========================================
 // CASH API (Gestion de caisse)
 // ==========================================

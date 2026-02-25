@@ -143,9 +143,9 @@ export const unsubscribeFromPush = async (token: string): Promise<boolean> => {
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
-          ...getNgrokHeaders()
-        },
-        body: JSON.stringify({ endpoint: subscription.endpoint })
+        ...getNgrokHeaders()
+      },
+      body: JSON.stringify({ endpoint: subscription.endpoint })
       });
     }
 
