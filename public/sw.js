@@ -21,8 +21,8 @@ self.addEventListener('push', (event) => {
   let data = {
     title: 'Global Exchange',
     body: 'Nouvelle notification',
-    icon: '/logo.png',
-    badge: '/badge.png',
+    icon: '/icons/icon-192.png',
+    badge: '/icons/badge-72.png',
     data: {}
   };
 
@@ -36,8 +36,8 @@ self.addEventListener('push', (event) => {
 
   const options = {
     body: data.body,
-    icon: data.icon || '/logo.png',
-    badge: data.badge || '/badge.png',
+    icon: data.icon || '/icons/icon-192.png',
+    badge: data.badge || '/icons/badge-72.png',
     vibrate: data.vibrate || [200, 100, 200],
     tag: data.tag || 'globalex-notification',
     data: data.data,
@@ -50,38 +50,36 @@ self.addEventListener('push', (event) => {
   );
 });
 
-// Notification click handler
+// Notification click handler (iOS 16.4+ : URL absolue requise pour openWindow)
 self.addEventListener('notificationclick', (event) => {
-  console.log('[SW] Notification clicked:', event.action);
-  
   event.notification.close();
 
   const data = event.notification.data || {};
-  let url = '/';
+  let path = '/';
 
-  // Handle action buttons
   if (event.action === 'view' && data.url) {
-    url = data.url;
+    path = data.url.startsWith('/') ? data.url : '/' + data.url;
   } else if (event.action === 'pay' && data.transferId) {
-    url = `/transfers?action=pay&id=${data.transferId}`;
+    path = `/transfers?action=pay&id=${data.transferId}`;
   } else if (data.url) {
-    url = data.url;
+    path = data.url.startsWith('/') ? data.url : '/' + data.url;
   }
 
-  // Open or focus the app
+  // iOS 16.4+ exige une URL absolue pour clients.openWindow
+  const baseUrl = self.registration.scope.replace(/\/$/, '');
+  const absoluteUrl = path.startsWith('http') ? path : baseUrl + (path.startsWith('/') ? path : '/' + path);
+
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true })
       .then((clientList) => {
-        // Check if there's already a window/tab open
         for (const client of clientList) {
-          if (client.url.includes(self.registration.scope) && 'focus' in client) {
-            client.navigate(url);
+          if (client.url.startsWith(baseUrl) && 'focus' in client) {
+            client.navigate(absoluteUrl);
             return client.focus();
           }
         }
-        // If no window is open, open a new one
         if (clients.openWindow) {
-          return clients.openWindow(url);
+          return clients.openWindow(absoluteUrl);
         }
       })
   );

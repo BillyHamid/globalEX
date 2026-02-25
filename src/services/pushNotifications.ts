@@ -191,8 +191,8 @@ export const sendTestNotification = async (token: string): Promise<boolean> => {
 export const showLocalNotification = (title: string, options?: NotificationOptions) => {
   if (Notification.permission === 'granted') {
     new Notification(title, {
-      icon: '/logo.png',
-      badge: '/badge.png',
+      icon: '/icons/icon-192.png',
+      badge: '/icons/badge-72.png',
       ...options
     });
   }
