@@ -447,7 +447,20 @@ export const statsAPI = {
 export const exchangeRatesAPI = {
   getUsdXof: async (): Promise<number> => {
     const response = await fetchAPI<{ success: boolean; data: { USD_XOF: number } }>('/exchange-rates');
-    return response.data?.USD_XOF ?? 557;
+    return response.data?.USD_XOF ?? 587; // taux_paiement (557 + 30)
+  },
+
+  /** Taux complet : taux_paiement = taux_reel + marge (30) */
+  getUsdXofDetails: async (): Promise<{ rateReel: number; ratePaiement: number; marge: number }> => {
+    const response = await fetchAPI<{
+      success: boolean;
+      data: { rateReel?: number; ratePaiement?: number; marge?: number; USD_XOF?: number };
+    }>('/exchange-rates');
+    const d = response.data;
+    const ratePaiement = d?.ratePaiement ?? d?.USD_XOF ?? 587;
+    const marge = d?.marge ?? 30;
+    const rateReel = d?.rateReel ?? ratePaiement - marge;
+    return { rateReel, ratePaiement, marge };
   },
 };
 
@@ -592,6 +605,113 @@ export const cashAPI = {
       body: JSON.stringify({ accountName, amount, description }),
     });
     return response.data;
+  },
+};
+
+// ─────────────────────────────────────────────────────────────
+// Dépenses Spéciales API
+// ─────────────────────────────────────────────────────────────
+
+export interface SpecialExpense {
+  id: string;
+  type: 'simple_expense';
+  amount: number;
+  description: string;
+  expenseDate: string;
+  receiptImage: string | null;
+  createdBy: string;
+  createdByName: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Loan {
+  id: string;
+  lenderId: string;
+  lenderName: string | null;
+  lenderEmail: string | null;
+  borrowerId: string;
+  borrowerName: string | null;
+  borrowerEmail: string | null;
+  amount: number;
+  reason: string;
+  loanDate: string;
+  createdBy: string;
+  createdByName: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PersonalWallet {
+  userId: string;
+  name: string;
+  email: string;
+  role: string;
+  balance: number;
+  currency: string;
+}
+
+export const specialExpensesAPI = {
+  getTfeesBalance: async (): Promise<{ availableTfees: number }> => {
+    const res = await fetchAPI<{ success: boolean; data: { availableTfees: number } }>(
+      '/special-expenses/tfees-balance'
+    );
+    return res.data;
+  },
+
+  listExpenses: async (page = 1, limit = 20): Promise<{ expenses: SpecialExpense[]; total: number }> => {
+    const res = await fetchAPI<{ success: boolean; data: { expenses: SpecialExpense[]; total: number } }>(
+      `/special-expenses?page=${page}&limit=${limit}`
+    );
+    return res.data;
+  },
+
+  createExpense: async (data: {
+    amount: number;
+    description: string;
+    expense_date: string;
+    receipt_image?: File;
+  }): Promise<SpecialExpense> => {
+    const formData = new FormData();
+    formData.append('amount', String(data.amount));
+    formData.append('description', data.description);
+    formData.append('expense_date', data.expense_date);
+    if (data.receipt_image) formData.append('receipt_image', data.receipt_image);
+
+    const res = await fetchAPI<{ success: boolean; data: SpecialExpense }>('/special-expenses', {
+      method: 'POST',
+      body: formData,
+    });
+    return res.data;
+  },
+
+  getReceiptUrl: (expenseId: string): string =>
+    `${API_BASE_URL}/special-expenses/${expenseId}/receipt`,
+
+  getWallets: async (): Promise<PersonalWallet[]> => {
+    const res = await fetchAPI<{ success: boolean; data: PersonalWallet[] }>(
+      '/special-expenses/wallets'
+    );
+    return res.data;
+  },
+
+  listLoans: async (page = 1, limit = 20): Promise<{ loans: Loan[]; total: number }> => {
+    const res = await fetchAPI<{ success: boolean; data: { loans: Loan[]; total: number } }>(
+      `/special-expenses/loans?page=${page}&limit=${limit}`
+    );
+    return res.data;
+  },
+
+  createLoan: async (data: {
+    amount: number;
+    reason: string;
+    loan_date: string;
+  }): Promise<Loan> => {
+    const res = await fetchAPI<{ success: boolean; data: Loan }>('/special-expenses/loans', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return res.data;
   },
 };
 

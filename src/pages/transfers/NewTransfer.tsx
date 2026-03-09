@@ -38,7 +38,10 @@ interface FinancialInfo {
 }
 
 // Taux de change - fallback si API indisponible
-const FALLBACK_RATE_USD_XOF = 557;
+// taux_paiement = taux_reel + marge_fixe(30)
+const MARGE_FIXE = 30;
+const FALLBACK_RATE_REEL = 557;
+const FALLBACK_RATE_PAIEMENT = FALLBACK_RATE_REEL + MARGE_FIXE;
 
 // Frais selon le montant
 // Structure pour USD (USA → BF): 
@@ -177,20 +180,35 @@ export const NewTransfer = () => {
   const [financial, setFinancial] = useState<FinancialInfo>({
     amountSent: 0,
     currency: 'USD',
-    exchangeRate: FALLBACK_RATE_USD_XOF,
+    exchangeRate: FALLBACK_RATE_REEL,
     useAutoRate: true,
     fees: 0,
   });
   
   const [feesManuallyEdited, setFeesManuallyEdited] = useState(false);
-  const [liveRateUsdXof, setLiveRateUsdXof] = useState(FALLBACK_RATE_USD_XOF);
+  const [liveRateDetails, setLiveRateDetails] = useState<{ rateReel: number; ratePaiement: number; marge: number } | null>(null);
+
+  // Direction du transfert
+  const isUSAtoBF = sender.country === 'USA' && beneficiary.country === 'BFA';
+  const isBFtoUSA = sender.country === 'BFA' && beneficiary.country === 'USA';
+
+  // Taux effectif selon la direction : marge (+30) uniquement pour BF → USA
+  const effectiveAutoRate = isBFtoUSA
+    ? (liveRateDetails?.ratePaiement ?? FALLBACK_RATE_PAIEMENT)
+    : (liveRateDetails?.rateReel ?? FALLBACK_RATE_REEL);
 
   // Récupérer le taux USD/XOF du jour (API)
   useEffect(() => {
     let cancelled = false;
-    exchangeRatesAPI.getUsdXof()
-      .then((rate) => { if (!cancelled) setLiveRateUsdXof(rate); })
-      .catch(() => { if (!cancelled) setLiveRateUsdXof(FALLBACK_RATE_USD_XOF); });
+    exchangeRatesAPI.getUsdXofDetails()
+      .then((d) => {
+        if (!cancelled) setLiveRateDetails(d);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setLiveRateDetails({ rateReel: FALLBACK_RATE_REEL, ratePaiement: FALLBACK_RATE_PAIEMENT, marge: MARGE_FIXE });
+        }
+      });
     return () => { cancelled = true; };
   }, []);
 
@@ -237,49 +255,61 @@ export const NewTransfer = () => {
   }, [user?.country]);
 
   // Mettre à jour la devise et le taux selon le pays d'envoi
+  // Bf → USA : taux_paiement (réel + 30). USA → BF : taux réel
   useEffect(() => {
     const country = COUNTRIES_SEND.find(c => c.code === sender.country);
     if (country) {
+      const bfToUsa = sender.country === 'BFA' && beneficiary.country === 'USA';
+      const rate = bfToUsa
+        ? (liveRateDetails?.ratePaiement ?? FALLBACK_RATE_PAIEMENT)
+        : (liveRateDetails?.rateReel ?? FALLBACK_RATE_REEL);
       setFinancial(prev => ({
         ...prev,
         currency: country.currency,
-        exchangeRate: prev.useAutoRate ? liveRateUsdXof : prev.exchangeRate,
+        exchangeRate: prev.useAutoRate ? rate : prev.exchangeRate,
       }));
     }
-  }, [sender.country, liveRateUsdXof]);
+  }, [sender.country, beneficiary.country, liveRateDetails]);
 
-  // Calculer les frais automatiquement (seulement si pas modifié manuellement)
+  // BF → USA : frais = (montant / taux_reel) - (montant / taux_paiement) → USD
+  // taux_paiement = financial.exchangeRate (modifiable par l'utilisateur)
+  // USA → BF : grille de frais fixe en USD
+  const computeAutoFees = (): number => {
+    if (isBFtoUSA && financial.amountSent > 0) {
+      const rr = liveRateDetails?.rateReel ?? FALLBACK_RATE_REEL;
+      const rp = financial.exchangeRate;
+      if (rp <= rr) return 0;
+      return Math.round(((financial.amountSent / rr) - (financial.amountSent / rp)) * 100) / 100;
+    }
+    return calculateFees(financial.amountSent, financial.currency);
+  };
+
+  const feeCurrency = isBFtoUSA ? 'USD' : financial.currency;
+
   useEffect(() => {
     if (financial.amountSent > 0 && !feesManuallyEdited) {
-      const fees = calculateFees(financial.amountSent, financial.currency);
+      const fees = computeAutoFees();
       setFinancial(prev => ({ ...prev, fees }));
     }
-  }, [financial.amountSent, financial.currency, feesManuallyEdited]);
+  }, [financial.amountSent, financial.currency, financial.exchangeRate, feesManuallyEdited, isBFtoUSA, liveRateDetails]);
 
-  // Calculs - tenir compte de la direction du transfert
-  // USA → BF : multiplier (USD * taux = XOF)
-  // BF → USA : diviser (XOF / taux = USD)
-  const isUSAtoBF = sender.country === 'USA' && beneficiary.country === 'BFA';
-  const isBFtoUSA = sender.country === 'BFA' && beneficiary.country === 'USA';
-  
+  // Calculs — direction du transfert
   let amountReceived: number;
   let currencyReceived: string;
   
   if (isUSAtoBF) {
-    // USA → BF : multiplier
     amountReceived = Math.round(financial.amountSent * financial.exchangeRate);
     currencyReceived = 'XOF';
   } else if (isBFtoUSA) {
-    // BF → USA : diviser
-    amountReceived = Math.round((financial.amountSent / financial.exchangeRate) * 100) / 100; // Arrondir à 2 décimales
+    amountReceived = Math.round((financial.amountSent / financial.exchangeRate) * 100) / 100;
     currencyReceived = 'USD';
   } else {
-    // Fallback (ne devrait pas arriver)
     amountReceived = Math.round(financial.amountSent * financial.exchangeRate);
     currencyReceived = 'XOF';
   }
   
-  const totalWithFees = financial.amountSent + financial.fees;
+  // BF → USA : frais intégrés dans la marge du taux (pas d'ajout), USA → BF : frais ajoutés
+  const totalWithFees = isBFtoUSA ? financial.amountSent : financial.amountSent + financial.fees;
 
   // Validation des étapes
   const isStep1Valid = sender.firstName && sender.lastName && sender.phone && sender.country;
@@ -311,8 +341,6 @@ export const NewTransfer = () => {
     setIsSubmitting(true);
     
     try {
-      // Appeler l'API backend pour créer le transfert
-      const calculatedFees = calculateFees(financial.amountSent, financial.currency);
       const transferData: any = {
         sender: {
           firstName: sender.firstName,
@@ -334,12 +362,18 @@ export const NewTransfer = () => {
         currency: financial.currency,
         exchangeRate: financial.exchangeRate,
         sendMethod: sender.sendMethod,
-        currencyReceived: currencyReceived // Passer la devise de réception calculée
+        currencyReceived: currencyReceived
       };
       
-      // Ajouter les frais personnalisés seulement s'ils diffèrent des frais calculés
-      if (feesManuallyEdited && financial.fees !== calculatedFees) {
+      if (isBFtoUSA) {
+        // BF → USA : frais calculés par la marge du taux (toujours envoyés)
         transferData.fees = financial.fees;
+        transferData.feeCurrency = 'USD';
+      } else if (feesManuallyEdited) {
+        const defaultFees = calculateFees(financial.amountSent, financial.currency);
+        if (financial.fees !== defaultFees) {
+          transferData.fees = financial.fees;
+        }
       }
 
       const result = await transfersAPI.create(transferData);
@@ -790,8 +824,11 @@ export const NewTransfer = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
-                  Taux ({sender.country === 'USA' ? `1 ${financial.currency} = X XOF` : `1 XOF = X ${currencyReceived}`})
+                  {isBFtoUSA ? 'Taux paiement' : 'Taux'} ({sender.country === 'USA' ? `1 ${financial.currency} = X XOF` : `1 XOF = X ${currencyReceived}`})
                 </label>
+                {liveRateDetails && isBFtoUSA && (
+                  <p className="text-xs text-gray-500 mb-1">Taux réel : {liveRateDetails.rateReel} · Majoration : +{(financial.exchangeRate - liveRateDetails.rateReel).toLocaleString()}</p>
+                )}
                 <div className="flex gap-2">
                   <input
                     type="number"
@@ -809,7 +846,7 @@ export const NewTransfer = () => {
                     onClick={() => {
                       setFinancial({ 
                         ...financial, 
-                        exchangeRate: liveRateUsdXof,
+                        exchangeRate: effectiveAutoRate,
                         useAutoRate: true 
                       });
                     }}
@@ -841,13 +878,14 @@ export const NewTransfer = () => {
                 </div>
                 <div className="bg-white rounded-lg sm:rounded-xl p-3 sm:p-4">
                   <div className="flex items-center justify-between mb-1">
-                    <p className="text-xs sm:text-sm text-gray-500">Frais</p>
-                    {feesManuallyEdited && (
+                    <p className="text-xs sm:text-sm text-gray-500">
+                      Frais {isBFtoUSA && <span className="text-gray-400">(marge taux)</span>}
+                    </p>
+                    {feesManuallyEdited && !isBFtoUSA && (
                       <button
                         type="button"
                         onClick={() => {
-                          const autoFees = calculateFees(financial.amountSent, financial.currency);
-                          setFinancial(prev => ({ ...prev, fees: autoFees }));
+                          setFinancial(prev => ({ ...prev, fees: computeAutoFees() }));
                           setFeesManuallyEdited(false);
                         }}
                         className="text-[10px] sm:text-xs text-emerald-600 hover:text-emerald-700 underline"
@@ -858,29 +896,35 @@ export const NewTransfer = () => {
                     )}
                   </div>
                   <div className="flex items-center gap-1">
-                    <input
-                      type="number"
-                      inputMode="decimal"
-                      min="0"
-                      max={calculateFees(financial.amountSent, financial.currency)}
-                      step="0.01"
-                      value={financial.fees}
-                      onChange={(e) => {
-                        const newFees = parseFloat(e.target.value) || 0;
-                        const maxFees = calculateFees(financial.amountSent, financial.currency);
-                        if (newFees <= maxFees && newFees >= 0) {
-                          setFinancial(prev => ({ ...prev, fees: newFees }));
-                          setFeesManuallyEdited(true);
-                        }
-                      }}
-                      className="text-lg sm:text-2xl font-bold text-amber-600 bg-transparent border-none p-0 w-full focus:outline-none focus:ring-0"
-                      style={{ WebkitAppearance: 'none', MozAppearance: 'textfield' }}
-                    />
-                    <span className="text-sm sm:text-base text-amber-600">{financial.currency}</span>
+                    {isBFtoUSA ? (
+                      <span className="text-lg sm:text-2xl font-bold text-amber-600">
+                        {financial.fees.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                    ) : (
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        min="0"
+                        max={computeAutoFees()}
+                        step="0.01"
+                        value={financial.fees}
+                        onChange={(e) => {
+                          const newFees = parseFloat(e.target.value) || 0;
+                          const maxFees = computeAutoFees();
+                          if (newFees <= maxFees && newFees >= 0) {
+                            setFinancial(prev => ({ ...prev, fees: newFees }));
+                            setFeesManuallyEdited(true);
+                          }
+                        }}
+                        className="text-lg sm:text-2xl font-bold text-amber-600 bg-transparent border-none p-0 w-full focus:outline-none focus:ring-0"
+                        style={{ WebkitAppearance: 'none', MozAppearance: 'textfield' }}
+                      />
+                    )}
+                    <span className="text-sm sm:text-base text-amber-600">{feeCurrency}</span>
                   </div>
-                  {feesManuallyEdited && (
+                  {feesManuallyEdited && !isBFtoUSA && (
                     <p className="text-[10px] sm:text-xs text-gray-400 mt-1">
-                      Max: {calculateFees(financial.amountSent, financial.currency)} {financial.currency}
+                      Max: {computeAutoFees()} {feeCurrency}
                     </p>
                   )}
                 </div>
@@ -901,8 +945,13 @@ export const NewTransfer = () => {
                 <p className="text-xs sm:text-sm text-emerald-100 mt-2">
                   {isUSAtoBF 
                     ? `Taux: 1 ${financial.currency} = ${financial.exchangeRate.toLocaleString()} XOF`
-                    : `Taux: 1 XOF = ${(1 / financial.exchangeRate).toFixed(4)} ${currencyReceived}`
+                    : `Taux paiement: 1 USD = ${financial.exchangeRate.toLocaleString()} XOF`
                   }
+                  {liveRateDetails && isBFtoUSA && (
+                    <span className="block mt-0.5 text-emerald-200/90">
+                      (réel {liveRateDetails.rateReel} + marge {(financial.exchangeRate - liveRateDetails.rateReel).toLocaleString()})
+                    </span>
+                  )}
                 </p>
               </div>
             </div>
@@ -957,7 +1006,36 @@ export const NewTransfer = () => {
               </div>
             </div>
 
-            {/* Montants - Mobile optimized */}
+            {/* Taux de change */}
+            <div className="bg-gray-50 rounded-xl p-4 sm:p-5">
+              <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2 text-sm sm:text-base">
+                <Calculator className="w-4 h-4 sm:w-5 sm:h-5 text-amber-600" />
+                Taux de change
+              </h3>
+              {isBFtoUSA && liveRateDetails ? (
+                <div className="space-y-2 text-xs sm:text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Taux réel</span>
+                    <span className="font-semibold text-gray-900">1 USD = {liveRateDetails.rateReel.toLocaleString('fr-FR')} XOF</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Majoration</span>
+                    <span className="font-semibold text-amber-600">+ {(financial.exchangeRate - liveRateDetails.rateReel).toLocaleString('fr-FR')} XOF</span>
+                  </div>
+                  <div className="flex justify-between pt-2 border-t border-gray-200">
+                    <span className="text-gray-700 font-medium">Taux paiement</span>
+                    <span className="font-bold text-emerald-700">1 USD = {financial.exchangeRate.toLocaleString('fr-FR')} XOF</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex justify-between text-xs sm:text-sm">
+                  <span className="text-gray-500">Taux appliqué</span>
+                  <span className="font-bold text-gray-900">1 USD = {financial.exchangeRate.toLocaleString('fr-FR')} XOF</span>
+                </div>
+              )}
+            </div>
+
+            {/* Montants */}
             <div className="bg-gradient-to-r from-emerald-600 to-teal-700 rounded-xl sm:rounded-2xl p-4 sm:p-6 text-white">
               <div className="grid grid-cols-3 gap-2 sm:gap-4 text-center">
                 <div>
@@ -968,7 +1046,7 @@ export const NewTransfer = () => {
                 <div>
                   <p className="text-[10px] sm:text-sm text-emerald-100">Frais</p>
                   <p className="text-sm sm:text-lg md:text-2xl font-bold">{financial.fees.toLocaleString()}</p>
-                  <p className="text-[10px] sm:text-xs text-emerald-200">{financial.currency}</p>
+                  <p className="text-[10px] sm:text-xs text-emerald-200">{feeCurrency}</p>
                 </div>
                 <div>
                   <p className="text-[10px] sm:text-sm text-emerald-100">À remettre</p>
@@ -1036,7 +1114,7 @@ export const NewTransfer = () => {
                   setCurrentStep(1);
                   setSender({ firstName: '', lastName: '', phone: '', email: '', country: 'USA', sendMethod: 'cash' });
                   setBeneficiary({ firstName: '', lastName: '', phone: '', idType: 'none', idNumber: '', country: 'BFA', city: '' });
-                  setFinancial({ amountSent: 0, currency: 'USD', exchangeRate: liveRateUsdXof, useAutoRate: true, fees: 0 });
+                  setFinancial({ amountSent: 0, currency: 'USD', exchangeRate: effectiveAutoRate, useAutoRate: true, fees: 0 });
                   setTransactionRef('');
                 }}
                 className="w-full sm:w-auto px-5 sm:px-6 py-3 bg-emerald-600 text-white rounded-xl font-medium hover:bg-emerald-700 active:bg-emerald-800 transition-colors flex items-center justify-center gap-2 touch-manipulation order-1 sm:order-2"

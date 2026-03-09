@@ -1,6 +1,6 @@
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { getMenuItemsForRole, getRoleLabel, getRoleColor } from '@/utils/roleConfig';
+import { getMenuItemsForUser, getRoleLabel, getRoleColor } from '@/utils/roleConfig';
 import { useMobileMenu } from './MainLayout';
 import * as LucideIcons from 'lucide-react';
 import { NotificationStatus } from '@/components/notifications/NotificationStatus';
@@ -17,7 +17,7 @@ export const Sidebar = () => {
   
   if (!user) return null;
 
-  const menuItems = getMenuItemsForRole(user.role);
+  const menuItems = getMenuItemsForUser(user);
 
   const getIcon = (iconName: string) => {
     const IconComponent = icons[iconName] || icons.Layout;

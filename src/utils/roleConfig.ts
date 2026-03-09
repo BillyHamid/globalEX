@@ -1,4 +1,4 @@
-import { MenuItem, Role } from '@/types';
+import { MenuItem, Role, User } from '@/types';
 
 // ==========================================
 // GLOBAL EXCHANGE - Configuration des Rôles
@@ -56,27 +56,28 @@ export const menuItems: MenuItem[] = [
     roles: ['admin', 'supervisor', 'sender_agent', 'payer_agent'],
   },
   {
-    label: 'Agents',
-    path: '/agents',
-    icon: 'Users',
-    roles: ['admin', 'supervisor'],
-  },
-  {
-    label: 'Notifications',
-    path: '/notifications',
-    icon: 'Bell',
-    roles: ['admin', 'supervisor'],
-  },
-  {
-    label: 'Utilisateurs',
-    path: '/users',
-    icon: 'Users',
-    roles: ['admin'],
+    label: 'Dépenses Spéciales',
+    path: '/special-expenses',
+    icon: 'Wallet',
+    roles: ['admin', 'sender_agent'],
   },
 ];
 
+const RAZACK_EMAIL = 'razack@globalexchange.com';
+
 export const getMenuItemsForRole = (role: Role): MenuItem[] => {
   return menuItems.filter(item => item.roles.includes(role));
+};
+
+/** Menu filtré avec règles fine-grained (email) pour les modules spéciaux */
+export const getMenuItemsForUser = (user: User): MenuItem[] => {
+  const isSpecialExpensesAllowed =
+    user.role === 'admin' || user.email === RAZACK_EMAIL;
+
+  return menuItems.filter((item) => {
+    if (item.path === '/special-expenses') return isSpecialExpensesAllowed;
+    return item.roles.includes(user.role);
+  });
 };
 
 // Permissions par rôle

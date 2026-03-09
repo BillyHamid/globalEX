@@ -4,7 +4,7 @@ import { cashAPI } from '@/services/api';
 import { CashEntryModal } from '@/components/cash/CashEntryModal';
 import { CashExpenseModal } from '@/components/cash/CashExpenseModal';
 import { 
-  DollarSign, TrendingUp, RefreshCw, 
+  DollarSign, RefreshCw, 
   Loader2, ArrowUpCircle, ArrowDownCircle, FileText,
   Calculator, History, Plus, Minus, Eye
 } from 'lucide-react';
@@ -52,6 +52,8 @@ interface CashDashboardData {
   totals: {
     tmountUSD: number;
     tfeesUSD: number;
+    tfeesNetUSD?: number;
+    totalSpecialExpenses?: number;
     tmountXOF: number;
     tfeesXOF: number;
     totalPaidTransfers: number;
@@ -268,48 +270,36 @@ export const CashDashboard = () => {
 
       {/* Totaux et statistiques (masqués pour les agents BF) */}
       {!restrictToBurkina && (
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Tmount = solde Caisse USA (évolue avec les mouvements) */}
-        <div className="bg-white rounded-xl border border-blue-200 p-4 shadow-sm">
-          <div className="flex items-center gap-2 text-gray-600 mb-2">
-            <TrendingUp className="w-4 h-4" />
-            <span className="text-sm font-medium">Tmount</span>
-          </div>
-          <div className="text-2xl font-bold text-blue-900">
-            {data.accounts.usa.formattedBalance}
-          </div>
-          <p className="text-xs text-gray-500 mt-1">= Solde Caisse USA (change à chaque mouvement)</p>
-        </div>
-
-        {/* Tfees USD — USA → Burkina */}
+      <div className="grid grid-cols-1 gap-4">
+        {/* Tfees USD — USA → Burkina (net après dépenses spéciales) */}
         <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
           <div className="flex items-center gap-2 text-gray-600 mb-2">
             <Calculator className="w-4 h-4" />
             <span className="text-sm font-medium">Tfees USD</span>
           </div>
           <div className="text-2xl font-bold text-amber-600">
-            ${data.totals.tfeesUSD.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            ${(data.totals.tfeesNetUSD ?? data.totals.tfeesUSD).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </div>
-          <p className="text-xs text-gray-500 mt-1">Frais USA → Burkina</p>
+          <p className="text-xs text-gray-500 mt-1">Solde net (après dépenses spéciales)</p>
+          {(data.totals.totalSpecialExpenses ?? 0) > 0 && (
+            <div className="mt-2 pt-2 border-t border-gray-100 space-y-1">
+              <div className="flex justify-between text-xs">
+                <span className="text-gray-400">Brut (frais USA→BF)</span>
+                <span className="text-gray-600">${data.totals.tfeesUSD.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              </div>
+              <div className="flex justify-between text-xs">
+                <span className="text-red-400">Dépenses spéciales</span>
+                <span className="text-red-500">− ${(data.totals.totalSpecialExpenses ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              </div>
+            </div>
+          )}
         </div>
       </div>
       )}
 
-      {/* Tmount XOF (USA→BF) + Transferts payés USA→BF (masqués pour les agents BF) */}
+      {/* Transferts payés USA → BF (masqué pour les agents BF) */}
       {!restrictToBurkina && (
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Tmount XOF — USA → Burkina (montants remis au BF) */}
-        <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
-          <div className="flex items-center gap-2 text-gray-600 mb-2">
-            <TrendingUp className="w-4 h-4" />
-            <span className="text-sm font-medium">Tmount XOF</span>
-          </div>
-          <div className="text-xl font-bold text-gray-900">
-            {data.totals.tmountXOF.toLocaleString('fr-FR')} FCFA
-          </div>
-          <p className="text-xs text-gray-500 mt-1">USA → Burkina : montants remis au BF</p>
-        </div>
-
+      <div className="grid grid-cols-1 gap-4">
         {/* Transferts payés USA → BF */}
         <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
           <div className="flex items-center gap-2 text-gray-600 mb-2">

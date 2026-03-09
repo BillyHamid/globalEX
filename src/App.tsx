@@ -24,6 +24,7 @@ const TransitDashboard = lazy(() => import('@/pages/transit/TransitDashboard').t
 const TransitAgentDashboard = lazy(() => import('@/pages/transit/TransitAgentDashboard').then(m => ({ default: m.TransitAgentDashboard })));
 const LogisticsDashboard = lazy(() => import('@/pages/logistics/LogisticsDashboard').then(m => ({ default: m.LogisticsDashboard })));
 const LogisticsManagerDashboard = lazy(() => import('@/pages/logistics/LogisticsManagerDashboard').then(m => ({ default: m.LogisticsManagerDashboard })));
+const SpecialExpenses = lazy(() => import('@/pages/specialExpenses/SpecialExpenses').then(m => ({ default: m.SpecialExpenses })));
 
 const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
   const { isAuthenticated } = useAuth();
@@ -64,6 +65,9 @@ function AppRoutes() {
         
         {/* Cash Management */}
         <Route path="cash" element={<CashDashboard />} />
+
+        {/* Dépenses Spéciales (admin + Zongo Razack) */}
+        <Route path="special-expenses" element={<SpecialExpenses />} />
         
         {/* Users & Settings */}
         <Route path="users" element={<Users />} />
