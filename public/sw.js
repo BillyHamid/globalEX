@@ -55,29 +55,47 @@ self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
   const data = event.notification.data || {};
-  let path = '/';
+  const baseUrl = self.registration.scope.replace(/\/$/, '');
 
+  // Déterminer la cible de navigation
+  let path;
   if (event.action === 'view' && data.url) {
-    path = data.url.startsWith('/') ? data.url : '/' + data.url;
+    // Bouton "Voir détails" → page de détail du transfert
+    path = data.url;
   } else if (event.action === 'pay' && data.transferId) {
-    path = `/transfers?action=pay&id=${data.transferId}`;
+    // Bouton "Marquer payé" → page de détail (l'agent peut payer depuis là)
+    path = `/transfers/${data.transferId}`;
   } else if (data.url) {
-    path = data.url.startsWith('/') ? data.url : '/' + data.url;
+    // Clic sur le corps de la notification → page de détail
+    path = data.url;
+  } else if (data.transferId) {
+    // Fallback : si on a un transferId mais pas d'url
+    path = `/transfers/${data.transferId}`;
+  } else {
+    // Fallback général : liste des transferts
+    path = '/transfers';
   }
 
-  // iOS 16.4+ exige une URL absolue pour clients.openWindow
-  const baseUrl = self.registration.scope.replace(/\/$/, '');
-  const absoluteUrl = path.startsWith('http') ? path : baseUrl + (path.startsWith('/') ? path : '/' + path);
+  // Construire l'URL absolue (exigée par iOS 16.4+)
+  const absoluteUrl = path.startsWith('http')
+    ? path
+    : baseUrl + (path.startsWith('/') ? path : '/' + path);
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true })
-      .then((clientList) => {
+      .then(async (clientList) => {
+        // Si l'app est déjà ouverte : naviguer dans l'onglet existant
         for (const client of clientList) {
           if (client.url.startsWith(baseUrl) && 'focus' in client) {
-            client.navigate(absoluteUrl);
-            return client.focus();
+            try {
+              await client.navigate(absoluteUrl);
+              return client.focus();
+            } catch {
+              return client.focus();
+            }
           }
         }
+        // Sinon : ouvrir un nouvel onglet
         if (clients.openWindow) {
           return clients.openWindow(absoluteUrl);
         }

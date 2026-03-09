@@ -185,6 +185,17 @@ export const Login = () => {
                 </div>
                 <span className="bg-blue-200 text-blue-800 px-2 py-1 rounded text-[10px] sm:text-xs flex-shrink-0 ml-2">USA</span>
               </button>
+              <button 
+                type="button"
+                onClick={() => setEmail('adjara@globalexchange.com')}
+                className="bg-blue-50 rounded-lg p-2.5 sm:p-3 flex justify-between items-center hover:bg-blue-100 active:bg-blue-200 transition-colors touch-manipulation text-left w-full"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold text-blue-800 truncate text-[11px] sm:text-xs">adjara@globalexchange.com</p>
+                  <p className="text-blue-600 text-[10px] sm:text-xs">Adjara (USA)</p>
+                </div>
+                <span className="bg-blue-200 text-blue-800 px-2 py-1 rounded text-[10px] sm:text-xs flex-shrink-0 ml-2">USA</span>
+              </button>
               {/* Agents Burkina Faso */}
               <button 
                 type="button"
