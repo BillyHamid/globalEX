@@ -27,7 +27,15 @@ const LogisticsManagerDashboard = lazy(() => import('@/pages/logistics/Logistics
 const SpecialExpenses = lazy(() => import('@/pages/specialExpenses/SpecialExpenses').then(m => ({ default: m.SpecialExpenses })));
 
 const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
+  // Attendre la fin de l'init auth avant de rediriger (évite 401 sur requêtes lancées trop tôt)
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="h-10 w-10 animate-spin rounded-full border-2 border-emerald-500 border-t-transparent" />
+      </div>
+    );
+  }
   return isAuthenticated ? <>{children}</> : <Navigate to="/login" />;
 };
 

@@ -129,7 +129,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           localStorage.removeItem('token');
         }
       } else if (storedUser && storedToken) {
-        // Token + user en localStorage (backend peut être indisponible)
+        // Token + user en localStorage (backend indisponible) — garder le token en mémoire pour les requêtes
+        setAuthToken(storedToken);
         setUser(JSON.parse(storedUser));
         setToken(storedToken);
       }
