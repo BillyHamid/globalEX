@@ -1,8 +1,7 @@
 // Push Notification Service for Frontend
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-const getNgrokHeaders = (): Record<string, string> =>
-  API_BASE_URL.includes('ngrok') ? { 'ngrok-skip-browser-warning': 'true' } : {};
+const NGROK_HEADERS: Record<string, string> = { 'ngrok-skip-browser-warning': 'true' };
 
 // Check if push notifications are supported
 export const isPushSupported = (): boolean => {
@@ -46,7 +45,7 @@ export const registerServiceWorker = async (): Promise<ServiceWorkerRegistration
 export const getVapidPublicKey = async (): Promise<string | null> => {
   try {
     const response = await fetch(`${API_BASE_URL}/notifications/vapid-public-key`, {
-      headers: getNgrokHeaders()
+      headers: NGROK_HEADERS
     });
     const data = await response.json();
     return data.data?.publicKey || null;
@@ -110,7 +109,7 @@ export const subscribeToPush = async (token: string): Promise<boolean> => {
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`,
-        ...getNgrokHeaders()
+        ...NGROK_HEADERS
       },
       body: JSON.stringify({ subscription })
     });
@@ -143,7 +142,7 @@ export const unsubscribeFromPush = async (token: string): Promise<boolean> => {
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
-        ...getNgrokHeaders()
+        ...NGROK_HEADERS
       },
       body: JSON.stringify({ endpoint: subscription.endpoint })
       });
@@ -177,7 +176,7 @@ export const sendTestNotification = async (token: string): Promise<boolean> => {
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`,
-        ...getNgrokHeaders()
+        ...NGROK_HEADERS
       }
     });
     return response.ok;

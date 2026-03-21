@@ -1,6 +1,9 @@
 // API Configuration
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
+// En-têtes pour ngrok (évite la page d'avertissement du plan gratuit)
+const NGROK_HEADERS: Record<string, string> = { 'ngrok-skip-browser-warning': 'true' };
+
 // Token management
 let authToken: string | null = localStorage.getItem('token');
 
@@ -24,7 +27,7 @@ const fetchAPI = async <T>(
   const token = getAuthToken();
   const headers: HeadersInit = {
     ...(options.headers as Record<string, string>),
-    ...(API_BASE_URL.includes('ngrok') && { 'ngrok-skip-browser-warning': 'true' }),
+    ...NGROK_HEADERS,
     ...(token && { Authorization: `Bearer ${token}` }), // En dernier pour ne jamais être écrasé
   };
   // Ne pas fixer Content-Type pour FormData (le navigateur ajoute multipart boundary)
@@ -268,8 +271,8 @@ export const transfersAPI = {
     const response = await fetch(`${API_BASE_URL}/transfers/${id}/confirm`, {
       method: 'POST',
       headers: {
+        ...NGROK_HEADERS,
         ...(token && { Authorization: `Bearer ${token}` }),
-        // Ne pas mettre Content-Type pour FormData, le navigateur le fait automatiquement
       },
       body: formData,
     });
@@ -290,8 +293,8 @@ export const transfersAPI = {
   downloadProof: async (id: string): Promise<void> => {
     const token = getAuthToken();
     const headers: HeadersInit = {
+      ...NGROK_HEADERS,
       ...(token && { Authorization: `Bearer ${token}` }),
-      ...(API_BASE_URL.includes('ngrok') && { 'ngrok-skip-browser-warning': 'true' }),
     };
     const response = await fetch(`${API_BASE_URL}/transfers/${id}/proof`, { headers });
 
@@ -567,8 +570,8 @@ export const cashAPI = {
   getEntryProofBlob: async (entryId: string): Promise<Blob> => {
     const token = getAuthToken();
     const headers: HeadersInit = {
+      ...NGROK_HEADERS,
       ...(token && { Authorization: `Bearer ${token}` }),
-      ...(API_BASE_URL.includes('ngrok') && { 'ngrok-skip-browser-warning': 'true' }),
     };
     const response = await fetch(`${API_BASE_URL}/cash/entry/${entryId}/proof`, { headers });
     if (!response.ok) {
@@ -720,7 +723,9 @@ export const specialExpensesAPI = {
 
 export const checkAPIHealth = async (): Promise<boolean> => {
   try {
-    const response = await fetch(`${API_BASE_URL}/health`);
+    const response = await fetch(`${API_BASE_URL}/health`, {
+      headers: NGROK_HEADERS,
+    });
     return response.ok;
   } catch {
     return false;
