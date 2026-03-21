@@ -21,8 +21,8 @@ self.addEventListener('push', (event) => {
   let data = {
     title: 'Global Exchange',
     body: 'Nouvelle notification',
-    icon: '/logo.png',
-    badge: '/badge.png',
+    icon: '/icons/icon-192.png',
+    badge: '/icons/badge-72.png',
     data: {}
   };
 
@@ -36,8 +36,8 @@ self.addEventListener('push', (event) => {
 
   const options = {
     body: data.body,
-    icon: data.icon || '/logo.png',
-    badge: data.badge || '/badge.png',
+    icon: data.icon || '/icons/icon-192.png',
+    badge: data.badge || '/icons/badge-72.png',
     vibrate: data.vibrate || [200, 100, 200],
     tag: data.tag || 'globalex-notification',
     data: data.data,
@@ -50,38 +50,54 @@ self.addEventListener('push', (event) => {
   );
 });
 
-// Notification click handler
+// Notification click handler (iOS 16.4+ : URL absolue requise pour openWindow)
 self.addEventListener('notificationclick', (event) => {
-  console.log('[SW] Notification clicked:', event.action);
-  
   event.notification.close();
 
   const data = event.notification.data || {};
-  let url = '/';
+  const baseUrl = self.registration.scope.replace(/\/$/, '');
 
-  // Handle action buttons
+  // Déterminer la cible de navigation
+  let path;
   if (event.action === 'view' && data.url) {
-    url = data.url;
+    // Bouton "Voir détails" → page de détail du transfert
+    path = data.url;
   } else if (event.action === 'pay' && data.transferId) {
-    url = `/transfers?action=pay&id=${data.transferId}`;
+    // Bouton "Marquer payé" → page de détail (l'agent peut payer depuis là)
+    path = `/transfers/${data.transferId}`;
   } else if (data.url) {
-    url = data.url;
+    // Clic sur le corps de la notification → page de détail
+    path = data.url;
+  } else if (data.transferId) {
+    // Fallback : si on a un transferId mais pas d'url
+    path = `/transfers/${data.transferId}`;
+  } else {
+    // Fallback général : liste des transferts
+    path = '/transfers';
   }
 
-  // Open or focus the app
+  // Construire l'URL absolue (exigée par iOS 16.4+)
+  const absoluteUrl = path.startsWith('http')
+    ? path
+    : baseUrl + (path.startsWith('/') ? path : '/' + path);
+
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true })
-      .then((clientList) => {
-        // Check if there's already a window/tab open
+      .then(async (clientList) => {
+        // Si l'app est déjà ouverte : naviguer dans l'onglet existant
         for (const client of clientList) {
-          if (client.url.includes(self.registration.scope) && 'focus' in client) {
-            client.navigate(url);
-            return client.focus();
+          if (client.url.startsWith(baseUrl) && 'focus' in client) {
+            try {
+              await client.navigate(absoluteUrl);
+              return client.focus();
+            } catch {
+              return client.focus();
+            }
           }
         }
-        // If no window is open, open a new one
+        // Sinon : ouvrir un nouvel onglet
         if (clients.openWindow) {
-          return clients.openWindow(url);
+          return clients.openWindow(absoluteUrl);
         }
       })
   );

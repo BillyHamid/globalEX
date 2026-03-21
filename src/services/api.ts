@@ -13,17 +13,19 @@ export const setAuthToken = (token: string | null) => {
   }
 };
 
-export const getAuthToken = () => authToken;
+// Toujours utiliser la source la plus à jour (mémoire ou localStorage) pour éviter les désynchronisations
+export const getAuthToken = () => authToken ?? localStorage.getItem('token');
 
 // Generic fetch wrapper
 const fetchAPI = async <T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> => {
+  const token = getAuthToken();
   const headers: HeadersInit = {
-    ...(authToken && { Authorization: `Bearer ${authToken}` }),
+    ...(options.headers as Record<string, string>),
     ...(API_BASE_URL.includes('ngrok') && { 'ngrok-skip-browser-warning': 'true' }),
-    ...options.headers,
+    ...(token && { Authorization: `Bearer ${token}` }), // En dernier pour ne jamais être écrasé
   };
   // Ne pas fixer Content-Type pour FormData (le navigateur ajoute multipart boundary)
   if (!(options.body instanceof FormData)) {
@@ -41,6 +43,7 @@ const fetchAPI = async <T>(
       // 401 = token manquant ou expiré → déconnecter et rediriger vers login
       if (response.status === 401) {
         setAuthToken(null);
+        localStorage.removeItem('user');
         const loginPath = `${window.location.origin}/login`;
         window.location.href = loginPath;
         throw new Error('Session expirée ou non connecté. Veuillez vous connecter.');

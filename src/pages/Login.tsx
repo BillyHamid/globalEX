@@ -234,7 +234,22 @@ export const Login = () => {
             <p className="text-[10px] sm:text-xs text-center text-gray-400 mt-2 sm:mt-3">(N'importe quel mot de passe)</p>
           </div>
 
-          <div className="mt-6 sm:mt-8 text-center">
+          <div className="mt-6 sm:mt-8 text-center space-y-2">
+            <button
+              type="button"
+              onClick={async () => {
+                localStorage.clear();
+                sessionStorage.clear();
+                if ('serviceWorker' in navigator) {
+                  const regs = await navigator.serviceWorker.getRegistrations();
+                  for (const reg of regs) await reg.unregister();
+                }
+                window.location.reload();
+              }}
+              className="text-xs text-gray-500 hover:text-emerald-600 underline"
+            >
+              Problème de connexion ? Réinitialiser
+            </button>
             <p className="text-[10px] sm:text-xs text-gray-500">
               © {new Date().getFullYear()} GLOBAL EXCHANGE. Tous droits réservés.
             </p>

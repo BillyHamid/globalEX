@@ -1,6 +1,6 @@
 // Service Worker for Global Exchange Push Notifications
 
-const CACHE_NAME = 'globalex-v1';
+const CACHE_NAME = 'globalex-v2';
 
 // Install event
 self.addEventListener('install', (event) => {
