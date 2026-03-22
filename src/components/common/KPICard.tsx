@@ -50,7 +50,10 @@ export const KPICard: React.FC<KPICardProps> = ({ kpi }) => {
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
           <p className="text-xs sm:text-sm font-medium text-gray-600 mb-1 sm:mb-2 truncate">{kpi.label}</p>
-          <p className="text-lg sm:text-xl lg:text-3xl font-bold text-gray-900 truncate">{kpi.value}</p>
+          <p className="text-lg sm:text-xl lg:text-3xl font-bold text-gray-900 break-words leading-tight">{kpi.value}</p>
+          {kpi.extra ? (
+            <p className="text-[10px] sm:text-xs text-gray-500 mt-1.5 leading-snug line-clamp-3">{kpi.extra}</p>
+          ) : null}
           {kpi.change !== undefined && (
             <div className="flex items-center gap-1 sm:gap-2 mt-2 sm:mt-3 flex-wrap">
               {kpi.trend === 'up' ? (

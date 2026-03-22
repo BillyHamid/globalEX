@@ -5,9 +5,37 @@ import { KPICard } from '@/components/common/KPICard';
 import { KPI } from '@/types';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { getRoleLabel } from '@/utils/roleConfig';
-import { ArrowLeftRight, Clock, CheckCircle, Globe, Loader2 } from 'lucide-react';
+import {
+  ArrowLeftRight,
+  Clock,
+  CheckCircle,
+  Globe,
+  Loader2,
+  MapPin,
+  Wallet,
+} from 'lucide-react';
 import { statsAPI } from '@/services/api';
 import { transfersAPI } from '@/services/api';
+import { SEND_METHOD_LABELS, SEND_METHOD_DISPLAY_ORDER } from '@/constants/sendMethods';
+
+interface PendingBreakdownCurrency {
+  currency: string;
+  count: number;
+  amount: number;
+}
+
+interface PendingBreakdownMethod {
+  sendMethod: string;
+  currency: string;
+  count: number;
+  amount: number;
+}
+
+interface PendingCorridor {
+  count: number;
+  byCurrency: PendingBreakdownCurrency[];
+  byMethod: PendingBreakdownMethod[];
+}
 
 interface DashboardData {
   today: { transfers: number; totalSent: number; totalReceived: number };
@@ -17,6 +45,14 @@ interface DashboardData {
     inProgress: { count: number; amount: number };
     paid: { count: number; amount: number };
     cancelled: { count: number; amount: number };
+  };
+  pendingBreakdown?: {
+    byCurrency: PendingBreakdownCurrency[];
+    byMethod: PendingBreakdownMethod[];
+  };
+  pendingCorridors?: {
+    usaToBf: PendingCorridor;
+    bfToUsa: PendingCorridor;
   };
 }
 
@@ -48,6 +84,60 @@ const formatAmount = (amount: number, currency: string = 'USD') => {
   if (currency === 'XOF') return `${Math.round(amount).toLocaleString('fr-FR')} XOF`;
   return `$${amount.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 };
+
+const formatPendingAmountsLine = (byCurrency: PendingBreakdownCurrency[]) => {
+  if (!byCurrency.length) return '—';
+  return byCurrency.map((c) => formatAmount(c.amount, c.currency)).join(' · ');
+};
+
+/** Une ligne courte par mode de paiement (montant dans la devise du transfert) */
+const formatPendingMethodsLine = (byMethod: PendingBreakdownMethod[]) => {
+  if (!byMethod.length) return '';
+  return byMethod
+    .map((m) => {
+      const label = SEND_METHOD_LABELS[m.sendMethod] || m.sendMethod;
+      const amt = formatAmount(m.amount, m.currency);
+      const n = m.count > 1 ? ` (${m.count})` : '';
+      return `${label} ${amt}${n}`;
+    })
+    .join(' · ');
+};
+
+/** Regroupe les lignes SQL (méthode + devise) en une entrée par mode de paiement */
+const groupPendingMethodsForCards = (byMethod: PendingBreakdownMethod[]) => {
+  const map = new Map<string, PendingBreakdownMethod[]>();
+  for (const m of byMethod) {
+    const arr = map.get(m.sendMethod) ?? [];
+    arr.push(m);
+    map.set(m.sendMethod, arr);
+  }
+  const ordered: { sendMethod: string; rows: PendingBreakdownMethod[]; totalCount: number }[] = [];
+  for (const id of SEND_METHOD_DISPLAY_ORDER) {
+    const rows = map.get(id);
+    if (rows?.length) {
+      ordered.push({
+        sendMethod: id,
+        rows,
+        totalCount: rows.reduce((s, r) => s + r.count, 0),
+      });
+      map.delete(id);
+    }
+  }
+  for (const [sendMethod, rows] of map.entries()) {
+    ordered.push({
+      sendMethod,
+      rows,
+      totalCount: rows.reduce((s, r) => s + r.count, 0),
+    });
+  }
+  return ordered;
+};
+
+const emptyCorridor = (): PendingCorridor => ({
+  count: 0,
+  byCurrency: [],
+  byMethod: [],
+});
 
 export const Dashboard = () => {
   const { user } = useAuth();
@@ -110,13 +200,24 @@ export const Dashboard = () => {
     paid: { count: 0, amount: 0 },
     cancelled: { count: 0, amount: 0 },
   };
+  const pendingBM = dashboard?.pendingBreakdown?.byMethod ?? [];
+  const pendingCorridors = dashboard?.pendingCorridors ?? {
+    usaToBf: emptyCorridor(),
+    bfToUsa: emptyCorridor(),
+  };
+  const methodCardsPending = groupPendingMethodsForCards(pendingBM);
+
   const totalTransfers = byStatus.pending.count + byStatus.inProgress.count + byStatus.paid.count + byStatus.cancelled.count;
   const successRate = totalTransfers > 0 ? ((byStatus.paid.count / totalTransfers) * 100).toFixed(1) : '0';
 
   const kpis: KPI[] = [
     { label: 'Total transferts', value: dashboard?.month?.transfers ?? 0, icon: 'ArrowLeftRight' },
     { label: 'Volume ce mois', value: formatAmount(dashboard?.month?.totalSent ?? 0), icon: 'DollarSign' },
-    { label: 'En attente', value: byStatus.pending.count, icon: 'Clock' },
+    {
+      label: 'En attente (total)',
+      value: byStatus.pending.count,
+      icon: 'Clock',
+    },
     { label: 'Payés', value: byStatus.paid.count, icon: 'CheckCircle' },
     { label: 'Taux de réussite', value: `${successRate}%`, icon: 'TrendingUp' },
     { label: 'Frais ce mois', value: formatAmount(dashboard?.month?.totalFees ?? 0), icon: 'DollarSign' },
@@ -169,6 +270,100 @@ export const Dashboard = () => {
         {kpis.map((kpi, idx) => (
           <KPICard key={idx} kpi={kpi} />
         ))}
+      </div>
+
+      {/* En attente : corridors USA / BF + modes de paiement */}
+      <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg border border-gray-100 p-4 sm:p-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4 sm:mb-5">
+          <h2 className="text-base sm:text-lg font-bold text-gray-800 flex items-center gap-2">
+            <Clock className="h-5 w-5 sm:h-6 sm:w-6 text-amber-500 flex-shrink-0" />
+            <span>Transferts en attente</span>
+          </h2>
+          <span className="text-xs sm:text-sm text-gray-500">
+            Total : <strong className="text-gray-800">{byStatus.pending.count}</strong>
+          </span>
+        </div>
+
+        <p className="text-xs sm:text-sm text-gray-500 mb-3 sm:mb-4">Par sens du corridor</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 mb-5 sm:mb-6">
+          <div className="rounded-xl border border-blue-200 bg-gradient-to-br from-blue-50/80 to-white p-3 sm:p-4">
+            <div className="flex items-start gap-2 mb-2">
+              <MapPin className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="text-xs font-medium text-blue-800 uppercase tracking-wide">Côté USA</p>
+                <p className="text-sm font-semibold text-gray-900">États-Unis → Burkina Faso</p>
+              </div>
+            </div>
+            <p className="text-lg sm:text-2xl font-bold text-blue-700 tabular-nums">
+              {pendingCorridors.usaToBf.count}
+              <span className="text-gray-400 font-normal text-base mx-1.5">·</span>
+              <span className="text-sm sm:text-lg font-semibold">
+                {formatPendingAmountsLine(pendingCorridors.usaToBf.byCurrency)}
+              </span>
+            </p>
+            {pendingCorridors.usaToBf.byMethod.length > 0 ? (
+              <p className="text-[10px] sm:text-xs text-gray-600 mt-2 pt-2 border-t border-blue-100 leading-snug line-clamp-3" title={formatPendingMethodsLine(pendingCorridors.usaToBf.byMethod)}>
+                {formatPendingMethodsLine(pendingCorridors.usaToBf.byMethod)}
+              </p>
+            ) : (
+              <p className="text-[10px] sm:text-xs text-gray-400 mt-2">Aucun en attente sur ce sens</p>
+            )}
+          </div>
+
+          <div className="rounded-xl border border-emerald-200 bg-gradient-to-br from-emerald-50/80 to-white p-3 sm:p-4">
+            <div className="flex items-start gap-2 mb-2">
+              <MapPin className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-600 mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="text-xs font-medium text-emerald-800 uppercase tracking-wide">Côté Burkina</p>
+                <p className="text-sm font-semibold text-gray-900">Burkina Faso → États-Unis</p>
+              </div>
+            </div>
+            <p className="text-lg sm:text-2xl font-bold text-emerald-700 tabular-nums">
+              {pendingCorridors.bfToUsa.count}
+              <span className="text-gray-400 font-normal text-base mx-1.5">·</span>
+              <span className="text-sm sm:text-lg font-semibold">
+                {formatPendingAmountsLine(pendingCorridors.bfToUsa.byCurrency)}
+              </span>
+            </p>
+            {pendingCorridors.bfToUsa.byMethod.length > 0 ? (
+              <p className="text-[10px] sm:text-xs text-gray-600 mt-2 pt-2 border-t border-emerald-100 leading-snug line-clamp-3" title={formatPendingMethodsLine(pendingCorridors.bfToUsa.byMethod)}>
+                {formatPendingMethodsLine(pendingCorridors.bfToUsa.byMethod)}
+              </p>
+            ) : (
+              <p className="text-[10px] sm:text-xs text-gray-400 mt-2">Aucun en attente sur ce sens</p>
+            )}
+          </div>
+        </div>
+
+        <p className="text-xs sm:text-sm text-gray-500 mb-2 sm:mb-3">Modes de paiement en attente (tous sens)</p>
+        {methodCardsPending.length === 0 ? (
+          <p className="text-sm text-gray-400 py-2">Aucun transfert en attente</p>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3">
+            {methodCardsPending.map(({ sendMethod, rows, totalCount }) => (
+              <div
+                key={sendMethod}
+                className="rounded-lg border border-amber-100 bg-amber-50/40 px-2.5 py-2 sm:px-3 sm:py-3 flex flex-col gap-1 min-h-[4.5rem]"
+              >
+                <div className="flex items-center gap-1.5 text-amber-800">
+                  <Wallet className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0 opacity-80" />
+                  <span className="text-[11px] sm:text-xs font-semibold leading-tight truncate" title={SEND_METHOD_LABELS[sendMethod] || sendMethod}>
+                    {SEND_METHOD_LABELS[sendMethod] || sendMethod}
+                  </span>
+                </div>
+                <p className="text-base sm:text-lg font-bold text-gray-900 tabular-nums">{totalCount}</p>
+                <div className="text-[10px] sm:text-[11px] text-gray-600 leading-tight space-y-0.5">
+                  {rows.map((r, i) => (
+                    <div key={`${r.currency}-${i}`}>
+                      {formatAmount(r.amount, r.currency)}
+                      {r.count > 1 ? <span className="text-gray-400"> ({r.count})</span> : null}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Charts */}
@@ -293,7 +488,7 @@ export const Dashboard = () => {
             <h3 className="text-base sm:text-lg font-semibold text-gray-900">Ce mois</h3>
             <p className="text-gray-600 text-sm mt-1">Transferts et volume</p>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 lg:gap-6">
             <div className="text-center bg-white/50 rounded-lg sm:rounded-xl p-3">
               <p className="text-lg sm:text-xl lg:text-2xl font-bold text-emerald-600">{dashboard?.month?.transfers ?? 0}</p>
               <p className="text-xs sm:text-sm text-gray-600">Transferts</p>
@@ -301,10 +496,6 @@ export const Dashboard = () => {
             <div className="text-center bg-white/50 rounded-lg sm:rounded-xl p-3">
               <p className="text-lg sm:text-xl lg:text-2xl font-bold text-blue-600">{formatAmount(dashboard?.month?.totalSent ?? 0)}</p>
               <p className="text-xs sm:text-sm text-gray-600">Volume</p>
-            </div>
-            <div className="text-center bg-white/50 rounded-lg sm:rounded-xl p-3">
-              <p className="text-lg sm:text-xl lg:text-2xl font-bold text-amber-600">{byStatus.pending.count}</p>
-              <p className="text-xs sm:text-sm text-gray-600">En attente</p>
             </div>
             <div className="text-center bg-white/50 rounded-lg sm:rounded-xl p-3">
               <p className="text-lg sm:text-xl lg:text-2xl font-bold text-purple-600">{formatAmount(dashboard?.month?.totalFees ?? 0)}</p>

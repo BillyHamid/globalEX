@@ -657,6 +657,156 @@ export interface PersonalWallet {
   currency: string;
 }
 
+// ==========================================
+// RAPPORTS FINANCIERS (Bernadette → validation admin)
+// ==========================================
+
+export interface FinancialReportItem {
+  id: string;
+  reportId: string;
+  label: string;
+  amount: number;
+  proofFile: string | null;
+  createdAt: string;
+}
+
+export type FinancialReportStatus = 'DRAFT' | 'PENDING' | 'APPROVED' | 'REJECTED';
+
+export interface FinancialReport {
+  id: string;
+  createdBy: string;
+  creatorName: string | null;
+  totalAmount: number;
+  comment: string | null;
+  status: FinancialReportStatus;
+  createdAt: string;
+  updatedAt: string;
+  submittedAt: string | null;
+  validatedBy: string | null;
+  validatorName: string | null;
+  validatedAt: string | null;
+  rejectionReason: string | null;
+  totalJustified: number;
+  remainingAmount: number;
+  items: FinancialReportItem[];
+}
+
+export const financialReportsAPI = {
+  create: async (body: { total_amount: number; comment?: string }): Promise<FinancialReport> => {
+    const res = await fetchAPI<{ success: boolean; data: FinancialReport }>('/financial-reports', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+    return res.data;
+  },
+
+  listMine: async (): Promise<FinancialReport[]> => {
+    const res = await fetchAPI<{ success: boolean; data: FinancialReport[] }>('/financial-reports/mine');
+    return res.data;
+  },
+
+  listForReview: async (): Promise<FinancialReport[]> => {
+    const res = await fetchAPI<{ success: boolean; data: FinancialReport[] }>(
+      '/financial-reports/for-review'
+    );
+    return res.data;
+  },
+
+  listHistory: async (status?: FinancialReportStatus): Promise<FinancialReport[]> => {
+    const q = status ? `?status=${encodeURIComponent(status)}` : '';
+    const res = await fetchAPI<{ success: boolean; data: FinancialReport[] }>(
+      `/financial-reports/history${q}`
+    );
+    return res.data;
+  },
+
+  get: async (id: string): Promise<FinancialReport> => {
+    const res = await fetchAPI<{ success: boolean; data: FinancialReport }>(`/financial-reports/${id}`);
+    return res.data;
+  },
+
+  update: async (
+    id: string,
+    body: { total_amount?: number; comment?: string }
+  ): Promise<FinancialReport> => {
+    const res = await fetchAPI<{ success: boolean; data: FinancialReport }>(`/financial-reports/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    });
+    return res.data;
+  },
+
+  deleteDraft: async (id: string): Promise<void> => {
+    await fetchAPI(`/financial-reports/${id}`, { method: 'DELETE' });
+  },
+
+  addItem: async (
+    reportId: string,
+    data: { label: string; amount: number; proof?: File | null }
+  ): Promise<{ item: FinancialReportItem; report: FinancialReport }> => {
+    const formData = new FormData();
+    formData.append('label', data.label);
+    formData.append('amount', String(data.amount));
+    if (data.proof) formData.append('proof', data.proof);
+    const res = await fetchAPI<{ success: boolean; data: { item: FinancialReportItem; report: FinancialReport } }>(
+      `/financial-reports/${reportId}/items`,
+      { method: 'POST', body: formData }
+    );
+    return res.data;
+  },
+
+  deleteItem: async (reportId: string, itemId: string): Promise<FinancialReport> => {
+    const res = await fetchAPI<{ success: boolean; data: FinancialReport }>(
+      `/financial-reports/${reportId}/items/${itemId}`,
+      { method: 'DELETE' }
+    );
+    return res.data;
+  },
+
+  submit: async (id: string): Promise<FinancialReport> => {
+    const res = await fetchAPI<{ success: boolean; data: FinancialReport }>(
+      `/financial-reports/${id}/submit`,
+      { method: 'POST', body: JSON.stringify({}) }
+    );
+    return res.data;
+  },
+
+  approve: async (id: string): Promise<FinancialReport> => {
+    const res = await fetchAPI<{ success: boolean; data: FinancialReport }>(
+      `/financial-reports/${id}/approve`,
+      { method: 'POST', body: JSON.stringify({}) }
+    );
+    return res.data;
+  },
+
+  reject: async (id: string, reason?: string): Promise<FinancialReport> => {
+    const res = await fetchAPI<{ success: boolean; data: FinancialReport }>(
+      `/financial-reports/${id}/reject`,
+      { method: 'POST', body: JSON.stringify({ reason: reason || '' }) }
+    );
+    return res.data;
+  },
+
+  /** Ouvre le justificatif dans un nouvel onglet (avec token). */
+  openItemProof: async (reportId: string, itemId: string): Promise<void> => {
+    const token = getAuthToken();
+    const res = await fetch(`${API_BASE_URL}/financial-reports/${reportId}/items/${itemId}/proof`, {
+      headers: {
+        ...NGROK_HEADERS,
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error((err as any).message || 'Impossible de charger le justificatif');
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    window.open(url, '_blank', 'noopener,noreferrer');
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  },
+};
+
 export const specialExpensesAPI = {
   getTfeesBalance: async (): Promise<{ availableTfees: number }> => {
     const res = await fetchAPI<{ success: boolean; data: { availableTfees: number } }>(

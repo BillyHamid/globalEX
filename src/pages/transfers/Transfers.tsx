@@ -30,7 +30,7 @@ interface TransferItem {
   exchangeRate: number;
   amountReceived: number;
   currencyReceived: string;
-  sendMethod?: 'cash' | 'zelle' | 'orange_money' | 'wave' | 'bank_transfer';
+  sendMethod?: string;
   status: 'pending' | 'in_progress' | 'paid' | 'cancelled';
   createdAt: string;
   createdBy: {
@@ -48,11 +48,12 @@ interface TransferItem {
 }
 
 const SEND_METHOD_CONFIG: Record<string, { label: string; color: string }> = {
-  cash: { label: 'Espèces', color: 'bg-amber-100 text-amber-800 border border-amber-200' },
+  cash: { label: 'Cash', color: 'bg-amber-100 text-amber-800 border border-amber-200' },
   zelle: { label: 'Zelle', color: 'bg-purple-100 text-purple-800 border border-purple-200' },
   orange_money: { label: 'Orange Money', color: 'bg-orange-100 text-orange-800 border border-orange-200' },
+  appel: { label: 'Appel', color: 'bg-sky-100 text-sky-800 border border-sky-200' },
+  bank_transfer: { label: 'Virement', color: 'bg-indigo-100 text-indigo-800 border border-indigo-200' },
   wave: { label: 'Wave', color: 'bg-cyan-100 text-cyan-800 border border-cyan-200' },
-  bank_transfer: { label: 'Virement bancaire', color: 'bg-indigo-100 text-indigo-800 border border-indigo-200' },
 };
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }> = {

@@ -6,6 +6,7 @@ import {
   ArrowLeft, Download, Loader2, XCircle, 
   User, Phone, MapPin, DollarSign, Calendar, FileText, CheckCircle, Clock, Ban
 } from 'lucide-react';
+import { SEND_METHOD_LABELS } from '@/constants/sendMethods';
 
 interface TransferDetail {
   id: string;
@@ -60,14 +61,6 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }>
   in_progress: { label: 'En cours', color: 'bg-purple-100 text-purple-800', icon: Clock },
   paid: { label: 'Payé', color: 'bg-emerald-100 text-emerald-800', icon: CheckCircle },
   cancelled: { label: 'Annulé', color: 'bg-red-100 text-red-800', icon: Ban },
-};
-
-const SEND_METHOD_LABELS: Record<string, string> = {
-  cash: 'Espèces',
-  zelle: 'Zelle',
-  orange_money: 'Orange Money',
-  wave: 'Wave',
-  bank_transfer: 'Virement bancaire',
 };
 
 export const TransferDetail = () => {

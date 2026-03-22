@@ -199,7 +199,7 @@ const JournalTable = ({ entries, direction }: { entries: JournalEntry[]; directi
                     </td>
                   )}
                   <td className="px-3 py-3 text-right">
-                    <span className="text-sm text-amber-600 font-medium">{formatCurrency(entry.fees, entry.currencySent)}</span>
+                    <span className="text-sm text-amber-600 font-medium">{formatCurrency(entry.fees, 'USD')}</span>
                   </td>
                   <td className="px-3 py-3 text-right">
                     <span className={`text-sm font-bold ${isBf ? 'text-orange-600' : 'text-blue-600'}`}>
@@ -208,7 +208,7 @@ const JournalTable = ({ entries, direction }: { entries: JournalEntry[]; directi
                   </td>
                   <td className="px-3 py-3 text-right">
                     <span className="text-sm font-bold text-amber-600">
-                      {entry.cumulative.fees.toLocaleString('fr-FR')}
+                      {formatCurrency(entry.cumulative.fees, 'USD')}
                     </span>
                   </td>
                   <td className="px-3 py-3">

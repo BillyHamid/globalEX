@@ -25,6 +25,15 @@ const TransitAgentDashboard = lazy(() => import('@/pages/transit/TransitAgentDas
 const LogisticsDashboard = lazy(() => import('@/pages/logistics/LogisticsDashboard').then(m => ({ default: m.LogisticsDashboard })));
 const LogisticsManagerDashboard = lazy(() => import('@/pages/logistics/LogisticsManagerDashboard').then(m => ({ default: m.LogisticsManagerDashboard })));
 const SpecialExpenses = lazy(() => import('@/pages/specialExpenses/SpecialExpenses').then(m => ({ default: m.SpecialExpenses })));
+const FinancialReportsList = lazy(() =>
+  import('@/pages/financialReports/FinancialReportsList').then(m => ({ default: m.FinancialReportsList }))
+);
+const FinancialReportsAdmin = lazy(() =>
+  import('@/pages/financialReports/FinancialReportsAdmin').then(m => ({ default: m.FinancialReportsAdmin }))
+);
+const FinancialReportDetail = lazy(() =>
+  import('@/pages/financialReports/FinancialReportDetail').then(m => ({ default: m.FinancialReportDetail }))
+);
 
 const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
   const { isAuthenticated, isLoading } = useAuth();
@@ -76,6 +85,11 @@ function AppRoutes() {
 
         {/* Dépenses Spéciales (admin + Zongo Razack) */}
         <Route path="special-expenses" element={<SpecialExpenses />} />
+
+        {/* Rapports financiers (Bernadette → validation admin) */}
+        <Route path="financial-reports/admin/validation" element={<FinancialReportsAdmin />} />
+        <Route path="financial-reports/:id" element={<FinancialReportDetail />} />
+        <Route path="financial-reports" element={<FinancialReportsList />} />
         
         {/* Users & Settings */}
         <Route path="users" element={<Users />} />

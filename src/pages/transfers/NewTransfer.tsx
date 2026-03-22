@@ -5,9 +5,15 @@ import { transfersAPI, sendersAPI, beneficiariesAPI, exchangeRatesAPI } from '@/
 import { 
   ArrowLeft, ArrowRight, User, Phone, Mail, MapPin, 
   DollarSign, Calculator, CheckCircle, Send, Copy,
-  CreditCard, Smartphone, Banknote, Hash, Calendar,
-  Building, Globe, FileText
+  CreditCard, Hash, Calendar,
+  Globe, FileText
 } from 'lucide-react';
+import {
+  getDefaultSendMethodForCountry,
+  getSendMethodsForSenderCountry,
+  isSendMethodAllowedForCountry,
+  type SendMethodId,
+} from '@/constants/sendMethods';
 
 // Types pour le formulaire
 interface SenderInfo {
@@ -16,7 +22,7 @@ interface SenderInfo {
   phone: string;
   email: string;
   country: string;
-  sendMethod: 'cash' | 'zelle' | 'orange_money' | 'wave' | 'bank_transfer';
+  sendMethod: SendMethodId;
 }
 
 interface BeneficiaryInfo {
@@ -115,14 +121,6 @@ const COUNTRIES_RECEIVE = [
   { code: 'USA', name: 'États-Unis', currency: 'USD', flag: '🇺🇸' },
 ];
 
-const SEND_METHODS = [
-  { id: 'cash', label: 'Cash', icon: Banknote },
-  { id: 'zelle', label: 'Zelle', icon: Smartphone },
-  { id: 'orange_money', label: 'Orange Money', icon: Smartphone },
-  { id: 'wave', label: 'Wave', icon: Smartphone },
-  { id: 'bank_transfer', label: 'Virement', icon: Building },
-];
-
 // Pays d'envoi/réception selon l'agent connecté : agent BF → envoi BF uniquement ; agent USA → envoi USA uniquement
 const isAgentBF = (userCountry: string | undefined) =>
   !!userCountry &&
@@ -164,7 +162,7 @@ export const NewTransfer = () => {
     phone: '',
     email: '',
     country: defaultCountries.send,
-    sendMethod: 'cash',
+    sendMethod: getDefaultSendMethodForCountry(defaultCountries.send),
   });
 
   const [beneficiary, setBeneficiary] = useState<BeneficiaryInfo>({
@@ -253,6 +251,15 @@ export const NewTransfer = () => {
     setSender(prev => (prev.country === send ? prev : { ...prev, country: send }));
     setBeneficiary(prev => (prev.country === receive ? prev : { ...prev, country: receive }));
   }, [user?.country]);
+
+  // Modes de paiement selon le pays expéditeur (BF : cash/zelle · USA : Orange / Appel / Virement)
+  useEffect(() => {
+    setSender((prev) => {
+      if (!prev.country) return prev;
+      if (isSendMethodAllowedForCountry(prev.sendMethod, prev.country)) return prev;
+      return { ...prev, sendMethod: getDefaultSendMethodForCountry(prev.country) };
+    });
+  }, [sender.country]);
 
   // Mettre à jour la devise et le taux selon le pays d'envoi
   // Bf → USA : taux_paiement (réel + 30). USA → BF : taux réel
@@ -592,7 +599,7 @@ export const NewTransfer = () => {
                 Mode de paiement *
               </label>
               <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 sm:gap-3">
-                {SEND_METHODS.map((method) => {
+                {getSendMethodsForSenderCountry(sender.country).map((method) => {
                   const Icon = method.icon;
                   return (
                     <button
@@ -984,7 +991,7 @@ export const NewTransfer = () => {
                   <p><span className="text-gray-500">Tél:</span> {sender.phone}</p>
                   {sender.email && <p className="truncate"><span className="text-gray-500">Email:</span> {sender.email}</p>}
                   <p><span className="text-gray-500">Pays:</span> {COUNTRIES_SEND.find(c => c.code === sender.country)?.name}</p>
-                  <p><span className="text-gray-500">Paiement:</span> {SEND_METHODS.find(m => m.id === sender.sendMethod)?.label}</p>
+                  <p><span className="text-gray-500">Paiement:</span> {getSendMethodsForSenderCountry(sender.country).find(m => m.id === sender.sendMethod)?.label}</p>
                 </div>
               </div>
 
@@ -1111,10 +1118,32 @@ export const NewTransfer = () => {
               </button>
               <button
                 onClick={() => {
+                  const { send, receive } = getDefaultCountriesByAgent(user?.country);
                   setCurrentStep(1);
-                  setSender({ firstName: '', lastName: '', phone: '', email: '', country: 'USA', sendMethod: 'cash' });
-                  setBeneficiary({ firstName: '', lastName: '', phone: '', idType: 'none', idNumber: '', country: 'BFA', city: '' });
-                  setFinancial({ amountSent: 0, currency: 'USD', exchangeRate: effectiveAutoRate, useAutoRate: true, fees: 0 });
+                  setSender({
+                    firstName: '',
+                    lastName: '',
+                    phone: '',
+                    email: '',
+                    country: send,
+                    sendMethod: getDefaultSendMethodForCountry(send),
+                  });
+                  setBeneficiary({
+                    firstName: '',
+                    lastName: '',
+                    phone: '',
+                    idType: 'none',
+                    idNumber: '',
+                    country: receive,
+                    city: '',
+                  });
+                  setFinancial({
+                    amountSent: 0,
+                    currency: send === 'BFA' ? 'XOF' : 'USD',
+                    exchangeRate: effectiveAutoRate,
+                    useAutoRate: true,
+                    fees: 0,
+                  });
                   setTransactionRef('');
                 }}
                 className="w-full sm:w-auto px-5 sm:px-6 py-3 bg-emerald-600 text-white rounded-xl font-medium hover:bg-emerald-700 active:bg-emerald-800 transition-colors flex items-center justify-center gap-2 touch-manipulation order-1 sm:order-2"

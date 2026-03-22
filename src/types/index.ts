@@ -209,6 +209,8 @@ export interface Transaction {
 export interface KPI {
   label: string;
   value: string | number;
+  /** Ligne secondaire compacte (ex. détail sous le KPI) */
+  extra?: string;
   change?: number;
   trend?: 'up' | 'down' | 'neutral';
   icon?: string;

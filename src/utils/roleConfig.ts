@@ -61,9 +61,22 @@ export const menuItems: MenuItem[] = [
     icon: 'Wallet',
     roles: ['admin', 'sender_agent'],
   },
+  {
+    label: 'Rapports financiers',
+    path: '/financial-reports',
+    icon: 'FileSpreadsheet',
+    roles: ['payer_agent'],
+  },
+  {
+    label: 'Valider rapports',
+    path: '/financial-reports/admin/validation',
+    icon: 'ClipboardCheck',
+    roles: ['admin'],
+  },
 ];
 
 const RAZACK_EMAIL = 'razack@globalexchange.com';
+const BERNADETTE_EMAIL = 'bernadette@globalexchange.com';
 
 export const getMenuItemsForRole = (role: Role): MenuItem[] => {
   return menuItems.filter(item => item.roles.includes(role));
@@ -76,6 +89,8 @@ export const getMenuItemsForUser = (user: User): MenuItem[] => {
 
   return menuItems.filter((item) => {
     if (item.path === '/special-expenses') return isSpecialExpensesAllowed;
+    if (item.path === '/financial-reports') return user.email === BERNADETTE_EMAIL;
+    if (item.path === '/financial-reports/admin/validation') return user.role === 'admin';
     return item.roles.includes(user.role);
   });
 };
