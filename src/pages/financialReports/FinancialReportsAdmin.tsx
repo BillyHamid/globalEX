@@ -9,6 +9,7 @@ import {
   ChevronRight,
   History,
 } from 'lucide-react';
+import { formatReportMoney } from './formatMoney';
 
 const STATUS_LABEL: Record<string, string> = {
   DRAFT: 'Brouillon',
@@ -16,9 +17,6 @@ const STATUS_LABEL: Record<string, string> = {
   APPROVED: 'Approuvé',
   REJECTED: 'Rejeté',
 };
-
-const fmt = (n: number) =>
-  n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export const FinancialReportsAdmin = () => {
   const [tab, setTab] = useState<'pending' | 'history'>('pending');
@@ -69,7 +67,7 @@ export const FinancialReportsAdmin = () => {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Validation des rapports financiers</h1>
           <p className="text-sm text-gray-500">
-            Rapports soumis par Bernadette — à approuver ou rejeter (SANA Djibril).
+            Montants en <strong>XOF</strong>. Rapports soumis par Bernadette — à approuver ou rejeter (SANA Djibrill).
           </p>
         </div>
       </div>
@@ -147,7 +145,8 @@ export const FinancialReportsAdmin = () => {
                 <div>
                   <p className="font-medium text-gray-900">{r.creatorName}</p>
                   <p className="text-sm text-gray-500">
-                    {fmt(r.totalAmount)} USD · {STATUS_LABEL[r.status]} · {r.items.length} ligne(s)
+                    {formatReportMoney(r.totalAmount, r.currency ?? 'XOF')} · {STATUS_LABEL[r.status]} ·{' '}
+                    {r.items.length} ligne(s)
                   </p>
                   {r.submittedAt && (
                     <p className="text-xs text-gray-400 mt-1">

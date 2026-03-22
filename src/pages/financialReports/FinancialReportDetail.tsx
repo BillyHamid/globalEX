@@ -13,11 +13,9 @@ import {
   XCircle,
   Plus,
 } from 'lucide-react';
+import { formatReportMoney } from './formatMoney';
 
 const BERNADETTE_EMAIL = 'bernadette@globalexchange.com';
-
-const fmt = (n: number) =>
-  n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const STATUS: Record<string, { label: string; className: string }> = {
   DRAFT: { label: 'Brouillon', className: 'bg-slate-100 text-slate-800' },
@@ -229,17 +227,23 @@ export const FinancialReportDetail = () => {
           <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${st.className}`}>{st.label}</span>
           <span className="text-xs text-gray-400 font-mono">{report.id}</span>
         </div>
-        <h1 className="text-2xl font-bold text-gray-900">{fmt(report.totalAmount)} USD</h1>
+        <h1 className="text-2xl font-bold text-gray-900">
+          {formatReportMoney(report.totalAmount, report.currency ?? 'XOF')}
+        </h1>
         <p className="text-sm text-gray-600 mt-1">Par {report.creatorName}</p>
 
         <div className="grid grid-cols-2 gap-3 mt-4 text-sm">
           <div className="bg-slate-50 rounded-xl p-3">
             <p className="text-gray-500 text-xs">Total justifié</p>
-            <p className="font-semibold text-gray-900">{fmt(report.totalJustified)} USD</p>
+            <p className="font-semibold text-gray-900">
+              {formatReportMoney(report.totalJustified, report.currency ?? 'XOF')}
+            </p>
           </div>
           <div className="bg-slate-50 rounded-xl p-3">
             <p className="text-gray-500 text-xs">Reste à allouer</p>
-            <p className="font-semibold text-gray-900">{fmt(report.remainingAmount)} USD</p>
+            <p className="font-semibold text-gray-900">
+              {formatReportMoney(report.remainingAmount, report.currency ?? 'XOF')}
+            </p>
           </div>
         </div>
 
@@ -268,11 +272,11 @@ export const FinancialReportDetail = () => {
           <h2 className="font-semibold text-gray-900">Montant global & commentaire</h2>
           <div className="grid sm:grid-cols-2 gap-3">
             <div>
-              <label className="text-xs text-gray-600">Montant (USD)</label>
+              <label className="text-xs text-gray-600">Montant global (XOF)</label>
               <input
                 type="number"
-                min="0.01"
-                step="0.01"
+                min="1"
+                step="1"
                 value={editTotal}
                 onChange={(e) => setEditTotal(e.target.value)}
                 className="w-full border rounded-lg px-3 py-2 text-sm mt-1"
@@ -315,7 +319,9 @@ export const FinancialReportDetail = () => {
               >
                 <div>
                   <p className="font-medium text-gray-900">{it.label}</p>
-                  <p className="text-indigo-700 font-semibold">{fmt(it.amount)} USD</p>
+                  <p className="text-indigo-700 font-semibold">
+                    {formatReportMoney(it.amount, report.currency ?? 'XOF')}
+                  </p>
                 </div>
                 <div className="flex items-center gap-2">
                   {it.proofFile && (
@@ -360,9 +366,9 @@ export const FinancialReportDetail = () => {
             />
             <input
               type="number"
-              min="0.01"
-              step="0.01"
-              placeholder="Montant USD *"
+              min="1"
+              step="1"
+              placeholder="Montant XOF *"
               value={lineAmount}
               onChange={(e) => setLineAmount(e.target.value)}
               className="border rounded-lg px-3 py-2 text-sm"

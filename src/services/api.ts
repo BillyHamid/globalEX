@@ -677,6 +677,8 @@ export interface FinancialReport {
   createdBy: string;
   creatorName: string | null;
   totalAmount: number;
+  /** Devise du rapport (XOF / F CFA) */
+  currency?: string;
   comment: string | null;
   status: FinancialReportStatus;
   createdAt: string;
