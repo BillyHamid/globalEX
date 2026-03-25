@@ -237,7 +237,19 @@ export const transfersAPI = {
     exchangeRate: number;
     sendMethod: string;
     notes?: string;
-  }) => {
+  },
+  beneficiaryIdProofFile?: File | null
+  ) => {
+    if (beneficiaryIdProofFile) {
+      const formData = new FormData();
+      formData.append('payload', JSON.stringify(transferData));
+      formData.append('beneficiary_id_proof', beneficiaryIdProofFile);
+      const response = await fetchAPI<{ success: boolean; data: any }>('/transfers', {
+        method: 'POST',
+        body: formData,
+      });
+      return response.data;
+    }
     const response = await fetchAPI<{ success: boolean; data: any }>('/transfers', {
       method: 'POST',
       body: JSON.stringify(transferData),
@@ -310,6 +322,42 @@ export const transfersAPI = {
 
     const contentDisposition = response.headers.get('Content-Disposition');
     let filename = 'proof.pdf';
+    if (contentDisposition) {
+      const matches = /filename="([^"]+)"/.exec(contentDisposition);
+      if (matches) filename = matches[1];
+    }
+
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+  },
+
+  downloadBeneficiaryIdProof: async (id: string): Promise<void> => {
+    const token = getAuthToken();
+    const headers: HeadersInit = {
+      ...NGROK_HEADERS,
+      ...(token && { Authorization: `Bearer ${token}` }),
+    };
+    const response = await fetch(`${API_BASE_URL}/transfers/${id}/beneficiary-id-proof`, { headers });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error((error as any).message || 'Erreur lors du téléchargement de la pièce d’identité');
+    }
+
+    const contentType = response.headers.get('Content-Type') || '';
+    if (contentType.includes('application/json')) {
+      throw new Error('Réponse invalide : le fichier n\'a pas été reçu correctement');
+    }
+
+    const contentDisposition = response.headers.get('Content-Disposition');
+    let filename = 'piece-identite';
     if (contentDisposition) {
       const matches = /filename="([^"]+)"/.exec(contentDisposition);
       if (matches) filename = matches[1];

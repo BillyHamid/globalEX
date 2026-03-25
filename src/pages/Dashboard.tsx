@@ -37,9 +37,31 @@ interface PendingCorridor {
   byMethod: PendingBreakdownMethod[];
 }
 
+interface CurrencyAmountRow {
+  currency: string;
+  amount: number;
+}
+
+interface MonthCurrencyRow {
+  currency: string;
+  totalSent: number;
+  totalFees: number;
+}
+
 interface DashboardData {
-  today: { transfers: number; totalSent: number; totalReceived: number };
-  month: { transfers: number; totalSent: number; totalFees: number };
+  today: {
+    transfers: number;
+    totalSent: number;
+    totalReceived: number;
+    byCurrencySent?: CurrencyAmountRow[];
+    byCurrencyReceived?: CurrencyAmountRow[];
+  };
+  month: {
+    transfers: number;
+    totalSent: number;
+    totalFees: number;
+    byCurrency?: MonthCurrencyRow[];
+  };
   byStatus: {
     pending: { count: number; amount: number };
     inProgress: { count: number; amount: number };
@@ -85,22 +107,24 @@ const formatAmount = (amount: number, currency: string = 'USD') => {
   return `$${amount.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 };
 
+const formatSentByCurrencyLine = (rows?: CurrencyAmountRow[]) => {
+  if (!rows?.length) return null;
+  return rows.map((r) => formatAmount(r.amount, r.currency)).join(' · ');
+};
+
+const formatMonthByCurrencyVolume = (rows?: MonthCurrencyRow[]) => {
+  if (!rows?.length) return null;
+  return rows.map((r) => formatAmount(r.totalSent, r.currency)).join(' · ');
+};
+
+const formatMonthByCurrencyFees = (rows?: MonthCurrencyRow[]) => {
+  if (!rows?.length) return null;
+  return rows.map((r) => formatAmount(r.totalFees, r.currency)).join(' · ');
+};
+
 const formatPendingAmountsLine = (byCurrency: PendingBreakdownCurrency[]) => {
   if (!byCurrency.length) return '—';
   return byCurrency.map((c) => formatAmount(c.amount, c.currency)).join(' · ');
-};
-
-/** Une ligne courte par mode de paiement (montant dans la devise du transfert) */
-const formatPendingMethodsLine = (byMethod: PendingBreakdownMethod[]) => {
-  if (!byMethod.length) return '';
-  return byMethod
-    .map((m) => {
-      const label = SEND_METHOD_LABELS[m.sendMethod] || m.sendMethod;
-      const amt = formatAmount(m.amount, m.currency);
-      const n = m.count > 1 ? ` (${m.count})` : '';
-      return `${label} ${amt}${n}`;
-    })
-    .join(' · ');
 };
 
 /** Regroupe les lignes SQL (méthode + devise) en une entrée par mode de paiement */
@@ -138,6 +162,66 @@ const emptyCorridor = (): PendingCorridor => ({
   byCurrency: [],
   byMethod: [],
 });
+
+/** Cartes modes de paiement pour un corridor (mise en avant principale) */
+function PendingMethodsCorridorBlock({
+  title,
+  subtitle,
+  cards,
+  borderClass,
+  titleClass,
+  emptyText,
+}: {
+  title: string;
+  subtitle: string;
+  cards: { sendMethod: string; rows: PendingBreakdownMethod[]; totalCount: number }[];
+  borderClass: string;
+  titleClass: string;
+  emptyText: string;
+}) {
+  return (
+    <div className={`rounded-xl border-2 ${borderClass} bg-gradient-to-b from-white to-gray-50/80 p-3 sm:p-4 shadow-sm`}>
+      <div className="mb-3 sm:mb-4">
+        <p className={`text-xs sm:text-sm font-bold uppercase tracking-wide ${titleClass}`}>{title}</p>
+        <p className="text-[11px] sm:text-xs text-gray-600 mt-1 leading-snug">{subtitle}</p>
+      </div>
+      {cards.length === 0 ? (
+        <p className="text-sm text-gray-400 py-6 text-center border border-dashed border-gray-200 rounded-lg">{emptyText}</p>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
+          {cards.map(({ sendMethod, rows, totalCount }) => (
+            <div
+              key={sendMethod}
+              className="rounded-xl border border-amber-200 bg-amber-50/50 px-3 py-3 sm:py-3.5 flex flex-col gap-1.5 min-h-[5.5rem] shadow-sm"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Wallet className="w-4 h-4 text-amber-700 flex-shrink-0" />
+                  <span
+                    className="text-xs sm:text-sm font-bold text-amber-950 leading-tight truncate"
+                    title={SEND_METHOD_LABELS[sendMethod] || sendMethod}
+                  >
+                    {SEND_METHOD_LABELS[sendMethod] || sendMethod}
+                  </span>
+                </div>
+                <span className="text-lg sm:text-xl font-black text-amber-900 tabular-nums flex-shrink-0">{totalCount}</span>
+              </div>
+              <p className="text-[10px] uppercase text-gray-500 font-medium">transferts</p>
+              <div className="text-[11px] sm:text-xs text-gray-800 leading-snug space-y-1 pt-1 border-t border-amber-200/60">
+                {rows.map((r, i) => (
+                  <div key={`${r.currency}-${i}`} className="flex flex-wrap items-baseline gap-x-1">
+                    <span className="font-semibold">{formatAmount(r.amount, r.currency)}</span>
+                    {r.count > 1 ? <span className="text-gray-500">({r.count} op.)</span> : null}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export const Dashboard = () => {
   const { user } = useAuth();
@@ -200,19 +284,26 @@ export const Dashboard = () => {
     paid: { count: 0, amount: 0 },
     cancelled: { count: 0, amount: 0 },
   };
-  const pendingBM = dashboard?.pendingBreakdown?.byMethod ?? [];
   const pendingCorridors = dashboard?.pendingCorridors ?? {
     usaToBf: emptyCorridor(),
     bfToUsa: emptyCorridor(),
   };
-  const methodCardsPending = groupPendingMethodsForCards(pendingBM);
+  const methodCardsUsaToBf = groupPendingMethodsForCards(pendingCorridors.usaToBf.byMethod);
+  const methodCardsBfToUsa = groupPendingMethodsForCards(pendingCorridors.bfToUsa.byMethod);
 
   const totalTransfers = byStatus.pending.count + byStatus.inProgress.count + byStatus.paid.count + byStatus.cancelled.count;
   const successRate = totalTransfers > 0 ? ((byStatus.paid.count / totalTransfers) * 100).toFixed(1) : '0';
 
+  const monthVolumeKpi =
+    formatMonthByCurrencyVolume(dashboard?.month?.byCurrency) ??
+    formatAmount(dashboard?.month?.totalSent ?? 0);
+  const monthFeesKpi =
+    formatMonthByCurrencyFees(dashboard?.month?.byCurrency) ??
+    formatAmount(dashboard?.month?.totalFees ?? 0);
+
   const kpis: KPI[] = [
     { label: 'Total transferts', value: dashboard?.month?.transfers ?? 0, icon: 'ArrowLeftRight' },
-    { label: 'Volume ce mois', value: formatAmount(dashboard?.month?.totalSent ?? 0), icon: 'DollarSign' },
+    { label: 'Volume ce mois', value: monthVolumeKpi, icon: 'DollarSign' },
     {
       label: 'En attente (total)',
       value: byStatus.pending.count,
@@ -220,7 +311,7 @@ export const Dashboard = () => {
     },
     { label: 'Payés', value: byStatus.paid.count, icon: 'CheckCircle' },
     { label: 'Taux de réussite', value: `${successRate}%`, icon: 'TrendingUp' },
-    { label: 'Frais ce mois', value: formatAmount(dashboard?.month?.totalFees ?? 0), icon: 'DollarSign' },
+    { label: 'Frais ce mois', value: monthFeesKpi, icon: 'DollarSign' },
   ];
 
   const statusData = [
@@ -256,9 +347,12 @@ export const Dashboard = () => {
               <p className="text-lg sm:text-xl lg:text-2xl font-bold">{dashboard?.today?.transfers ?? 0}</p>
             </div>
             <div className="bg-white/20 backdrop-blur-sm rounded-lg sm:rounded-xl p-3 sm:p-4 border border-white/30">
-              <p className="text-xs sm:text-sm opacity-90">Volume aujourd&apos;hui</p>
-              <p className="text-lg sm:text-xl lg:text-2xl font-bold">
-                {dashboard?.today?.totalSent != null ? formatAmount(dashboard.today.totalSent) : '—'}
+              <p className="text-xs sm:text-sm opacity-90">Volume aujourd&apos;hui (envoyé)</p>
+              <p className="text-lg sm:text-xl lg:text-2xl font-bold break-words leading-tight">
+                {formatSentByCurrencyLine(dashboard?.today?.byCurrencySent) ??
+                  (dashboard?.today?.transfers
+                    ? formatAmount(dashboard.today.totalSent)
+                    : '—')}
               </p>
             </div>
           </div>
@@ -272,9 +366,9 @@ export const Dashboard = () => {
         ))}
       </div>
 
-      {/* En attente : corridors USA / BF + modes de paiement */}
+      {/* En attente : modes de paiement en premier, puis synthèse volumes */}
       <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg border border-gray-100 p-4 sm:p-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4 sm:mb-5">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2">
           <h2 className="text-base sm:text-lg font-bold text-gray-800 flex items-center gap-2">
             <Clock className="h-5 w-5 sm:h-6 sm:w-6 text-amber-500 flex-shrink-0" />
             <span>Transferts en attente</span>
@@ -284,14 +378,45 @@ export const Dashboard = () => {
           </span>
         </div>
 
-        <p className="text-xs sm:text-sm text-gray-500 mb-3 sm:mb-4">Par sens du corridor</p>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 mb-5 sm:mb-6">
+        <div className="rounded-xl bg-amber-50/80 border border-amber-200/80 p-3 sm:p-4 mb-5 sm:mb-6">
+          <h3 className="text-sm sm:text-base font-bold text-amber-950 flex items-center gap-2 mb-1">
+            <Wallet className="w-5 h-5 text-amber-700" />
+            Modes de paiement en attente
+          </h3>
+          <p className="text-xs sm:text-sm text-amber-900/80 mb-4 leading-snug">
+            Répartition par <strong>mode choisi à l&apos;émission</strong>, séparée selon que l&apos;agent a initié le transfert aux USA (vers le BF) ou au Burkina (vers les USA).             Les montants par mode sont les <strong>montants à remettre</strong> côté destinataire : en{' '}
+            <strong>XOF</strong> pour les transferts USA → BF, en <strong>USD ($)</strong> pour BF → USA.
+          </p>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5">
+            <PendingMethodsCorridorBlock
+              title="Émission aux USA → destinataire BF"
+              subtitle="Cash, Zelle, etc. à l&apos;émission · montants affichés en XOF (à remettre au BF)."
+              cards={methodCardsUsaToBf}
+              borderClass="border-blue-300/90"
+              titleClass="text-blue-800"
+              emptyText="Aucun transfert en attente sur ce sens"
+            />
+            <PendingMethodsCorridorBlock
+              title="Émission au Burkina → destinataire USA"
+              subtitle="Orange Money, appel, virement à l&apos;émission · montants affichés en USD ($) (à remettre aux USA)."
+              cards={methodCardsBfToUsa}
+              borderClass="border-emerald-300/90"
+              titleClass="text-emerald-800"
+              emptyText="Aucun transfert en attente sur ce sens"
+            />
+          </div>
+        </div>
+
+        <p className="text-xs sm:text-sm font-medium text-gray-600 mb-3">
+          Synthèse des montants à remettre (XOF côté BF · USD côté USA)
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
           <div className="rounded-xl border border-blue-200 bg-gradient-to-br from-blue-50/80 to-white p-3 sm:p-4">
             <div className="flex items-start gap-2 mb-2">
               <MapPin className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 mt-0.5 flex-shrink-0" />
               <div>
-                <p className="text-xs font-medium text-blue-800 uppercase tracking-wide">Côté USA</p>
-                <p className="text-sm font-semibold text-gray-900">États-Unis → Burkina Faso</p>
+                <p className="text-xs font-medium text-blue-800 uppercase tracking-wide">USA → Burkina Faso</p>
+                <p className="text-sm font-semibold text-gray-900">Total à remettre au Burkina</p>
               </div>
             </div>
             <p className="text-lg sm:text-2xl font-bold text-blue-700 tabular-nums">
@@ -301,21 +426,14 @@ export const Dashboard = () => {
                 {formatPendingAmountsLine(pendingCorridors.usaToBf.byCurrency)}
               </span>
             </p>
-            {pendingCorridors.usaToBf.byMethod.length > 0 ? (
-              <p className="text-[10px] sm:text-xs text-gray-600 mt-2 pt-2 border-t border-blue-100 leading-snug line-clamp-3" title={formatPendingMethodsLine(pendingCorridors.usaToBf.byMethod)}>
-                {formatPendingMethodsLine(pendingCorridors.usaToBf.byMethod)}
-              </p>
-            ) : (
-              <p className="text-[10px] sm:text-xs text-gray-400 mt-2">Aucun en attente sur ce sens</p>
-            )}
           </div>
 
           <div className="rounded-xl border border-emerald-200 bg-gradient-to-br from-emerald-50/80 to-white p-3 sm:p-4">
             <div className="flex items-start gap-2 mb-2">
               <MapPin className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-600 mt-0.5 flex-shrink-0" />
               <div>
-                <p className="text-xs font-medium text-emerald-800 uppercase tracking-wide">Côté Burkina</p>
-                <p className="text-sm font-semibold text-gray-900">Burkina Faso → États-Unis</p>
+                <p className="text-xs font-medium text-emerald-800 uppercase tracking-wide">Burkina Faso → USA</p>
+                <p className="text-sm font-semibold text-gray-900">Total à remettre aux USA</p>
               </div>
             </div>
             <p className="text-lg sm:text-2xl font-bold text-emerald-700 tabular-nums">
@@ -325,45 +443,8 @@ export const Dashboard = () => {
                 {formatPendingAmountsLine(pendingCorridors.bfToUsa.byCurrency)}
               </span>
             </p>
-            {pendingCorridors.bfToUsa.byMethod.length > 0 ? (
-              <p className="text-[10px] sm:text-xs text-gray-600 mt-2 pt-2 border-t border-emerald-100 leading-snug line-clamp-3" title={formatPendingMethodsLine(pendingCorridors.bfToUsa.byMethod)}>
-                {formatPendingMethodsLine(pendingCorridors.bfToUsa.byMethod)}
-              </p>
-            ) : (
-              <p className="text-[10px] sm:text-xs text-gray-400 mt-2">Aucun en attente sur ce sens</p>
-            )}
           </div>
         </div>
-
-        <p className="text-xs sm:text-sm text-gray-500 mb-2 sm:mb-3">Modes de paiement en attente (tous sens)</p>
-        {methodCardsPending.length === 0 ? (
-          <p className="text-sm text-gray-400 py-2">Aucun transfert en attente</p>
-        ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3">
-            {methodCardsPending.map(({ sendMethod, rows, totalCount }) => (
-              <div
-                key={sendMethod}
-                className="rounded-lg border border-amber-100 bg-amber-50/40 px-2.5 py-2 sm:px-3 sm:py-3 flex flex-col gap-1 min-h-[4.5rem]"
-              >
-                <div className="flex items-center gap-1.5 text-amber-800">
-                  <Wallet className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0 opacity-80" />
-                  <span className="text-[11px] sm:text-xs font-semibold leading-tight truncate" title={SEND_METHOD_LABELS[sendMethod] || sendMethod}>
-                    {SEND_METHOD_LABELS[sendMethod] || sendMethod}
-                  </span>
-                </div>
-                <p className="text-base sm:text-lg font-bold text-gray-900 tabular-nums">{totalCount}</p>
-                <div className="text-[10px] sm:text-[11px] text-gray-600 leading-tight space-y-0.5">
-                  {rows.map((r, i) => (
-                    <div key={`${r.currency}-${i}`}>
-                      {formatAmount(r.amount, r.currency)}
-                      {r.count > 1 ? <span className="text-gray-400"> ({r.count})</span> : null}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
 
       {/* Charts */}
@@ -494,12 +575,18 @@ export const Dashboard = () => {
               <p className="text-xs sm:text-sm text-gray-600">Transferts</p>
             </div>
             <div className="text-center bg-white/50 rounded-lg sm:rounded-xl p-3">
-              <p className="text-lg sm:text-xl lg:text-2xl font-bold text-blue-600">{formatAmount(dashboard?.month?.totalSent ?? 0)}</p>
-              <p className="text-xs sm:text-sm text-gray-600">Volume</p>
+              <p className="text-lg sm:text-xl lg:text-2xl font-bold text-blue-600 break-words leading-tight">
+                {formatMonthByCurrencyVolume(dashboard?.month?.byCurrency) ??
+                  formatAmount(dashboard?.month?.totalSent ?? 0)}
+              </p>
+              <p className="text-xs sm:text-sm text-gray-600">Volume (par devise)</p>
             </div>
             <div className="text-center bg-white/50 rounded-lg sm:rounded-xl p-3">
-              <p className="text-lg sm:text-xl lg:text-2xl font-bold text-purple-600">{formatAmount(dashboard?.month?.totalFees ?? 0)}</p>
-              <p className="text-xs sm:text-sm text-gray-600">Frais</p>
+              <p className="text-lg sm:text-xl lg:text-2xl font-bold text-purple-600 break-words leading-tight">
+                {formatMonthByCurrencyFees(dashboard?.month?.byCurrency) ??
+                  formatAmount(dashboard?.month?.totalFees ?? 0)}
+              </p>
+              <p className="text-xs sm:text-sm text-gray-600">Frais (par devise)</p>
             </div>
           </div>
         </div>

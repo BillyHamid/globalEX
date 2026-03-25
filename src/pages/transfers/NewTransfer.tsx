@@ -6,7 +6,7 @@ import {
   ArrowLeft, ArrowRight, User, Phone, Mail, MapPin, 
   DollarSign, Calculator, CheckCircle, Send, Copy,
   CreditCard, Hash, Calendar,
-  Globe, FileText
+  Globe, FileText, Upload, X
 } from 'lucide-react';
 import {
   getDefaultSendMethodForCountry,
@@ -217,6 +217,7 @@ export const NewTransfer = () => {
   const [loadingBeneficiaries, setLoadingBeneficiaries] = useState(false);
   const [selectedSenderId, setSelectedSenderId] = useState<string | null>(null);
   const [selectedBeneficiaryId, setSelectedBeneficiaryId] = useState<string | null>(null);
+  const [beneficiaryIdProofFile, setBeneficiaryIdProofFile] = useState<File | null>(null);
 
   // Charger les expéditeurs du pays d'envoi (avec protection StrictMode + cleanup)
   useEffect(() => {
@@ -383,7 +384,7 @@ export const NewTransfer = () => {
         }
       }
 
-      const result = await transfersAPI.create(transferData);
+      const result = await transfersAPI.create(transferData, beneficiaryIdProofFile);
       setTransactionRef(result.reference);
       setCurrentStep(5); // Étape de succès
     } catch (error: any) {
@@ -735,6 +736,46 @@ export const NewTransfer = () => {
             </div>
 
             <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
+                <Upload className="w-4 h-4 inline mr-1" />
+                Scan / photo de la pièce d&apos;identité (optionnel)
+              </label>
+              <p className="text-xs text-gray-500 mb-2">
+                JPG, PNG ou PDF — max. 5 Mo. Le fichier est associé au bénéficiaire pour ce transfert.
+              </p>
+              {!beneficiaryIdProofFile ? (
+                <label className="flex flex-col sm:flex-row sm:items-center gap-2 cursor-pointer">
+                  <span className="inline-flex items-center justify-center px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 hover:bg-gray-100 text-sm font-medium text-gray-700 transition-colors w-full sm:w-auto">
+                    Choisir un fichier
+                  </span>
+                  <input
+                    type="file"
+                    accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf"
+                    className="sr-only"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      setBeneficiaryIdProofFile(f ?? null);
+                      e.target.value = '';
+                    }}
+                  />
+                </label>
+              ) : (
+                <div className="flex flex-wrap items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50/60 px-3 py-2.5">
+                  <FileText className="w-4 h-4 text-emerald-700 flex-shrink-0" />
+                  <span className="text-sm text-gray-800 truncate flex-1 min-w-0">{beneficiaryIdProofFile.name}</span>
+                  <button
+                    type="button"
+                    onClick={() => setBeneficiaryIdProofFile(null)}
+                    className="p-1.5 rounded-lg text-gray-600 hover:bg-white/80 hover:text-red-600 transition-colors"
+                    aria-label="Retirer le fichier"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 <MapPin className="w-4 h-4 inline mr-1" />
                 Pays de réception *
@@ -1008,6 +1049,11 @@ export const NewTransfer = () => {
                   <p><span className="text-gray-500">Pays:</span> {COUNTRIES_RECEIVE.find(c => c.code === beneficiary.country)?.name}</p>
                   {beneficiary.idType !== 'none' && (
                     <p><span className="text-gray-500">ID:</span> {beneficiary.idNumber}</p>
+                  )}
+                  {beneficiaryIdProofFile && (
+                    <p className="truncate">
+                      <span className="text-gray-500">Pièce jointe:</span> {beneficiaryIdProofFile.name}
+                    </p>
                   )}
                 </div>
               </div>

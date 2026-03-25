@@ -8,6 +8,7 @@ import {
   Plus, Search, Filter, ArrowLeftRight, Clock, CheckCircle, 
   XCircle, Eye, RefreshCw, Download, Loader2, Ban, FileCheck, Trash2
 } from 'lucide-react';
+import { getPendingCorridorHighlight } from '@/utils/transferCorridorDisplay';
 
 interface TransferItem {
   id: string;
@@ -204,22 +205,54 @@ export const Transfers = () => {
       ),
     },
     {
-      header: 'Montant envoyé',
+      header: 'Montant',
       accessor: 'amountSent' as keyof TransferItem,
-      render: (value: number, row: TransferItem) => (
-        <span className="font-medium">{value.toLocaleString()} {row.currencySent}</span>
-      ),
+      render: (value: number, row: TransferItem) => {
+        const hi = getPendingCorridorHighlight(row);
+        if (hi) {
+          return (
+            <div className="text-sm leading-tight">
+              <p className="font-semibold text-gray-900">
+                {hi.primaryAmount.toLocaleString('fr-FR')} {hi.primaryCurrency}
+              </p>
+              <p className="text-[11px] text-emerald-700 font-medium mt-0.5">{hi.primaryHint}</p>
+              <p className="text-xs text-gray-500 mt-1">
+                {hi.secondaryHint} · {hi.secondaryAmount.toLocaleString('fr-FR')} {hi.secondaryCurrency}
+              </p>
+            </div>
+          );
+        }
+        return (
+          <span className="font-medium">
+            {value.toLocaleString('fr-FR')} {row.currencySent}
+          </span>
+        );
+      },
     },
     {
       header: 'Mode de paiement',
       accessor: 'sendMethod' as keyof TransferItem,
-      render: (value: string) => {
+      render: (value: string, row: TransferItem) => {
         const config = value ? SEND_METHOD_CONFIG[value] : null;
         if (!config) return <span className="text-gray-400 text-sm">—</span>;
+        const hi = getPendingCorridorHighlight(row);
+        const awaiting = row.status === 'pending' || row.status === 'in_progress';
         return (
-          <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold ${config.color}`}>
-            {config.label}
-          </span>
+          <div className="min-w-[6.5rem] max-w-[11rem]">
+            <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold ${config.color}`}>
+              {config.label}
+            </span>
+            {awaiting && hi ? (
+              <p className="text-[10px] sm:text-[11px] text-amber-900 font-semibold mt-1.5 leading-tight border-t border-amber-100 pt-1.5">
+                En attente · paiement{' '}
+                {row.sender.country === 'USA' && row.beneficiary.country === 'BFA'
+                  ? 'au BF (XOF)'
+                  : row.sender.country === 'BFA' && row.beneficiary.country === 'USA'
+                    ? 'aux USA (USD)'
+                    : 'partenaire'}
+              </p>
+            ) : null}
+          </div>
         );
       },
     },
@@ -249,9 +282,21 @@ export const Transfers = () => {
     {
       header: 'À remettre',
       accessor: 'amountReceived' as keyof TransferItem,
-      render: (value: number, row: TransferItem) => (
-        <span className="font-bold text-emerald-600">{value.toLocaleString()} {row.currencyReceived || 'XOF'}</span>
-      ),
+      render: (value: number, row: TransferItem) => {
+        const hi = getPendingCorridorHighlight(row);
+        if (hi) {
+          return (
+            <span className="font-bold text-emerald-600">
+              {hi.primaryAmount.toLocaleString('fr-FR')} {hi.primaryCurrency}
+            </span>
+          );
+        }
+        return (
+          <span className="font-bold text-emerald-600">
+            {value.toLocaleString('fr-FR')} {row.currencyReceived || 'XOF'}
+          </span>
+        );
+      },
     },
     {
       header: 'Agent',

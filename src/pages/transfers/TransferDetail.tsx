@@ -7,6 +7,7 @@ import {
   User, Phone, MapPin, DollarSign, Calendar, FileText, CheckCircle, Clock, Ban
 } from 'lucide-react';
 import { SEND_METHOD_LABELS } from '@/constants/sendMethods';
+import { getPendingCorridorHighlight, isBfToUsaCorridor } from '@/utils/transferCorridorDisplay';
 
 interface TransferDetail {
   id: string;
@@ -28,6 +29,7 @@ interface TransferDetail {
     city: string;
     idType?: string;
     idNumber?: string;
+    hasIdProof?: boolean;
   };
   amountSent: number;
   currencySent: string;
@@ -140,6 +142,8 @@ export const TransferDetail = () => {
 
   const statusConfig = STATUS_CONFIG[transfer.status] || STATUS_CONFIG.pending;
   const StatusIcon = statusConfig.icon;
+  const pendingHi = getPendingCorridorHighlight(transfer);
+  const isBfToUsa = isBfToUsaCorridor(transfer.sender.country, transfer.beneficiary.country);
 
   return (
     <div className="space-y-6">
@@ -237,6 +241,25 @@ export const TransferDetail = () => {
                 </p>
               </div>
             )}
+            {transfer.beneficiary.hasIdProof && (
+              <div>
+                <p className="text-sm text-gray-500 mb-2">Fichier pièce d&apos;identité</p>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      await transfersAPI.downloadBeneficiaryIdProof(transfer.id);
+                    } catch (err: any) {
+                      alert(err.message || 'Erreur lors du téléchargement');
+                    }
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-700 rounded-lg hover:bg-emerald-100 transition-colors text-sm font-medium"
+                >
+                  <Download className="w-4 h-4" />
+                  Télécharger le scan
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -247,33 +270,75 @@ export const TransferDetail = () => {
             Informations financières
           </h2>
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-sm text-gray-500">Montant envoyé</p>
-                <p className="text-xl font-bold text-gray-900">
-                  {transfer.amountSent.toLocaleString()} {transfer.currencySent}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Frais</p>
-                <p className="text-xl font-bold text-amber-600">
-                  {transfer.fees.toLocaleString()} {transfer.currencySent}
-                </p>
-              </div>
-            </div>
-            <div className="border-t pt-4">
-              <p className="text-sm text-gray-500 mb-1">Montant à remettre</p>
-              <p className="text-2xl font-bold text-emerald-600">
-                {transfer.amountReceived.toLocaleString()} {transfer.currencyReceived}
+            {pendingHi ? (
+              <>
+                <div className="rounded-xl bg-emerald-50 border border-emerald-100 p-4">
+                  <p className="text-sm font-medium text-emerald-800 mb-1">{pendingHi.primaryHint}</p>
+                  <p className="text-3xl font-bold text-emerald-700">
+                    {pendingHi.primaryAmount.toLocaleString('fr-FR')} {pendingHi.primaryCurrency}
+                  </p>
+                  <p className="text-sm text-gray-600 mt-2">
+                    {pendingHi.secondaryHint} :{' '}
+                    <span className="font-medium text-gray-900">
+                      {pendingHi.secondaryAmount.toLocaleString('fr-FR')} {pendingHi.secondaryCurrency}
+                    </span>
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Frais</p>
+                  <p className="text-xl font-bold text-amber-600">
+                    {transfer.fees.toLocaleString('fr-FR')} {transfer.currencySent}
+                  </p>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-gray-500">Montant envoyé</p>
+                    <p className="text-xl font-bold text-gray-900">
+                      {transfer.amountSent.toLocaleString('fr-FR')} {transfer.currencySent}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500">Frais</p>
+                    <p className="text-xl font-bold text-amber-600">
+                      {transfer.fees.toLocaleString('fr-FR')} {transfer.currencySent}
+                    </p>
+                  </div>
+                </div>
+                <div className="border-t pt-4">
+                  <p className="text-sm text-gray-500 mb-1">Montant à remettre</p>
+                  <p className="text-2xl font-bold text-emerald-600">
+                    {transfer.amountReceived.toLocaleString('fr-FR')} {transfer.currencyReceived}
+                  </p>
+                </div>
+              </>
+            )}
+            <div>
+              <p className="text-sm text-gray-500">Taux de change</p>
+              <p className="text-base text-gray-900">
+                {isBfToUsa ? (
+                  <>1 XOF = {(1 / transfer.exchangeRate).toFixed(4)} {transfer.currencyReceived}</>
+                ) : (
+                  <>1 {transfer.currencySent} = {transfer.exchangeRate.toLocaleString('fr-FR')} {transfer.currencyReceived}</>
+                )}
               </p>
             </div>
             <div>
-              <p className="text-sm text-gray-500">Taux de change</p>
-              <p className="text-base text-gray-900">1 {transfer.currencySent} = {transfer.exchangeRate} {transfer.currencyReceived}</p>
-            </div>
-            <div>
-              <p className="text-sm text-gray-500">Méthode de paiement</p>
-              <p className="text-base text-gray-900">{SEND_METHOD_LABELS[transfer.sendMethod] || transfer.sendMethod}</p>
+              <p className="text-sm text-gray-500">Méthode de paiement (à l&apos;émission)</p>
+              <p className="text-base font-semibold text-gray-900">
+                {SEND_METHOD_LABELS[transfer.sendMethod] || transfer.sendMethod}
+              </p>
+              {pendingHi ? (
+                <p className="text-sm text-amber-900 font-medium mt-2 p-2 rounded-lg bg-amber-50 border border-amber-100">
+                  En attente : cette opération a été initiée avec ce mode côté pays expéditeur. Le solde à effectuer côté partenaire est indiqué ci-dessus (
+                  {transfer.sender.country === 'USA' && transfer.beneficiary.country === 'BFA'
+                    ? 'paiement au Burkina en XOF'
+                    : 'paiement aux USA en USD'}
+                  ).
+                </p>
+              ) : null}
             </div>
           </div>
         </div>
