@@ -257,6 +257,42 @@ export const transfersAPI = {
     return response.data;
   },
 
+  /** Transfert en attente : admin ou Razack uniquement (backend) */
+  update: async (
+    id: string,
+    transferData: {
+      sender: {
+        firstName: string;
+        lastName: string;
+        phone: string;
+        email?: string;
+        country: string;
+      };
+      beneficiary: {
+        firstName: string;
+        lastName: string;
+        phone: string;
+        country: string;
+        city: string;
+        idType?: string;
+        idNumber?: string;
+      };
+      amountSent: number;
+      currency: string;
+      exchangeRate: number;
+      sendMethod: string;
+      notes?: string;
+      fees?: number;
+      currencyReceived?: string;
+    }
+  ) => {
+    const response = await fetchAPI<{ success: boolean; data: any }>(`/transfers/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(transferData),
+    });
+    return response.data;
+  },
+
   markAsPaid: async (id: string) => {
     const response = await fetchAPI<{ success: boolean; data: any }>(`/transfers/${id}/pay`, {
       method: 'PATCH',

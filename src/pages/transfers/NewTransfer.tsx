@@ -6,7 +6,7 @@ import {
   ArrowLeft, ArrowRight, User, Phone, Mail, MapPin, 
   DollarSign, Calculator, CheckCircle, Send, Copy,
   CreditCard, Hash, Calendar,
-  Globe, FileText, Upload, X
+  Globe, FileText, Upload, X, Loader2
 } from 'lucide-react';
 import {
   getDefaultSendMethodForCountry,
@@ -145,6 +145,28 @@ const getReceiverCountriesForAgent = (userCountry: string | undefined) =>
     ? COUNTRIES_RECEIVE.filter((c) => c.code === 'USA')
     : COUNTRIES_RECEIVE.filter((c) => c.code === 'BFA');
 
+/** Pour l’auto-complétion : prend le fragment le plus long (≥ 2 car.) parmi prénom, nom, téléphone */
+const getBeneficiarySearchToken = (b: BeneficiaryInfo): string => {
+  const parts = [b.firstName, b.lastName, b.phone].map((s) => s.trim()).filter((s) => s.length >= 2);
+  if (parts.length === 0) return '';
+  return parts.reduce((best, x) => (x.length > best.length ? x : best), parts[0]);
+};
+
+const getSenderSearchToken = (s: SenderInfo): string => {
+  const parts = [s.firstName, s.lastName, s.phone].map((x) => x.trim()).filter((x) => x.length >= 2);
+  if (parts.length === 0) return '';
+  return parts.reduce((best, x) => (x.length > best.length ? x : best), parts[0]);
+};
+
+const mapApiIdTypeToForm = (raw: string | null | undefined): BeneficiaryInfo['idType'] => {
+  if (!raw) return 'none';
+  const v = String(raw).toLowerCase().replace(/-/g, '_');
+  if (v === 'passport' || v === 'passeport') return 'passport';
+  if (v === 'national_id' || v === 'cni' || v === 'id_nationale') return 'national_id';
+  if (v === 'driver_license' || v === 'permis') return 'driver_license';
+  return 'none';
+};
+
 export const NewTransfer = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -184,6 +206,8 @@ export const NewTransfer = () => {
   });
   
   const [feesManuallyEdited, setFeesManuallyEdited] = useState(false);
+  /** Saisie libre USA → BFA (string) pour permettre de vider le champ ; `financial.fees` reste la valeur numérique. */
+  const [feesText, setFeesText] = useState('0');
   const [liveRateDetails, setLiveRateDetails] = useState<{ rateReel: number; ratePaiement: number; marge: number } | null>(null);
 
   // Direction du transfert
@@ -218,6 +242,35 @@ export const NewTransfer = () => {
   const [selectedSenderId, setSelectedSenderId] = useState<string | null>(null);
   const [selectedBeneficiaryId, setSelectedBeneficiaryId] = useState<string | null>(null);
   const [beneficiaryIdProofFile, setBeneficiaryIdProofFile] = useState<File | null>(null);
+  const [debouncedBeneficiarySearch, setDebouncedBeneficiarySearch] = useState('');
+  const [beneficiaryTypeahead, setBeneficiaryTypeahead] = useState<
+    Array<{
+      id: string;
+      firstName: string;
+      lastName: string;
+      phone: string;
+      country: string;
+      city?: string;
+      idType?: string;
+      idNumber?: string;
+    }>
+  >([]);
+  const [beneficiaryTypeaheadLoading, setBeneficiaryTypeaheadLoading] = useState(false);
+  const [beneficiarySuggestionsOpen, setBeneficiarySuggestionsOpen] = useState(false);
+
+  const [debouncedSenderSearch, setDebouncedSenderSearch] = useState('');
+  const [senderTypeahead, setSenderTypeahead] = useState<
+    Array<{
+      id: string;
+      firstName: string;
+      lastName: string;
+      phone: string;
+      email?: string;
+      country: string;
+    }>
+  >([]);
+  const [senderTypeaheadLoading, setSenderTypeaheadLoading] = useState(false);
+  const [senderSuggestionsOpen, setSenderSuggestionsOpen] = useState(false);
 
   // Charger les expéditeurs du pays d'envoi (avec protection StrictMode + cleanup)
   useEffect(() => {
@@ -232,6 +285,59 @@ export const NewTransfer = () => {
     return () => { cancelled = true; };
   }, [sender.country]);
 
+  useEffect(() => {
+    const token = getSenderSearchToken(sender);
+    const t = setTimeout(() => setDebouncedSenderSearch(token), 380);
+    return () => clearTimeout(t);
+  }, [sender.firstName, sender.lastName, sender.phone]);
+
+  useEffect(() => {
+    if (currentStep !== 1 || !sender.country || debouncedSenderSearch.length < 2) {
+      setSenderTypeahead([]);
+      setSenderTypeaheadLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setSenderTypeaheadLoading(true);
+    sendersAPI
+      .getAll({ country: sender.country, search: debouncedSenderSearch, limit: 20 })
+      .then((res) => {
+        if (!cancelled) setSenderTypeahead(res.data || []);
+      })
+      .catch(() => {
+        if (!cancelled) setSenderTypeahead([]);
+      })
+      .finally(() => {
+        if (!cancelled) setSenderTypeaheadLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [debouncedSenderSearch, sender.country, currentStep]);
+
+  const applySenderSuggestion = (s: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    phone: string;
+    email?: string;
+    country: string;
+  }) => {
+    setSelectedSenderId(s.id);
+    const country = s.country || sender.country;
+    setSender((prev) => ({
+      ...prev,
+      firstName: s.firstName,
+      lastName: s.lastName,
+      phone: s.phone,
+      email: s.email || '',
+      country,
+      sendMethod: getDefaultSendMethodForCountry(country),
+    }));
+    setSenderSuggestionsOpen(false);
+    setSenderTypeahead([]);
+  };
+
   // Charger les bénéficiaires du pays de réception (avec protection StrictMode + cleanup)
   useEffect(() => {
     if (!beneficiary.country) return;
@@ -244,6 +350,64 @@ export const NewTransfer = () => {
       .finally(() => { if (!cancelled) setLoadingBeneficiaries(false); });
     return () => { cancelled = true; };
   }, [beneficiary.country]);
+
+  // Saisie prénom / nom / tél. : debounce puis recherche API (suggestions)
+  useEffect(() => {
+    const token = getBeneficiarySearchToken(beneficiary);
+    const t = setTimeout(() => setDebouncedBeneficiarySearch(token), 380);
+    return () => clearTimeout(t);
+  }, [beneficiary.firstName, beneficiary.lastName, beneficiary.phone]);
+
+  useEffect(() => {
+    if (currentStep !== 2 || !beneficiary.country || debouncedBeneficiarySearch.length < 2) {
+      setBeneficiaryTypeahead([]);
+      setBeneficiaryTypeaheadLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setBeneficiaryTypeaheadLoading(true);
+    beneficiariesAPI
+      .getAll({ country: beneficiary.country, search: debouncedBeneficiarySearch, limit: 20 })
+      .then((res) => {
+        if (!cancelled) setBeneficiaryTypeahead(res.data || []);
+      })
+      .catch(() => {
+        if (!cancelled) setBeneficiaryTypeahead([]);
+      })
+      .finally(() => {
+        if (!cancelled) setBeneficiaryTypeaheadLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [debouncedBeneficiarySearch, beneficiary.country, currentStep]);
+
+  const applyBeneficiarySuggestion = (
+    b: {
+      id: string;
+      firstName: string;
+      lastName: string;
+      phone: string;
+      country: string;
+      city?: string;
+      idType?: string;
+      idNumber?: string;
+    }
+  ) => {
+    setSelectedBeneficiaryId(b.id);
+    setBeneficiary((prev) => ({
+      ...prev,
+      firstName: b.firstName,
+      lastName: b.lastName,
+      phone: b.phone,
+      country: b.country || prev.country,
+      city: b.city || '',
+      idType: mapApiIdTypeToForm(b.idType),
+      idNumber: b.idNumber || '',
+    }));
+    setBeneficiarySuggestionsOpen(false);
+    setBeneficiaryTypeahead([]);
+  };
 
   // Quand l'agent est chargé, appliquer pays d'envoi = pays de l'agent (BF → BF, USA → USA)
   useEffect(() => {
@@ -300,6 +464,14 @@ export const NewTransfer = () => {
       setFinancial(prev => ({ ...prev, fees }));
     }
   }, [financial.amountSent, financial.currency, financial.exchangeRate, feesManuallyEdited, isBFtoUSA, liveRateDetails]);
+
+  useEffect(() => {
+    if (isBFtoUSA) return;
+    if (!feesManuallyEdited) {
+      const f = financial.fees;
+      setFeesText(Number.isFinite(f) ? String(f) : '0');
+    }
+  }, [financial.fees, feesManuallyEdited, isBFtoUSA]);
 
   // Calculs — direction du transfert
   let amountReceived: number;
@@ -377,11 +549,9 @@ export const NewTransfer = () => {
         // BF → USA : frais calculés par la marge du taux (toujours envoyés)
         transferData.fees = financial.fees;
         transferData.feeCurrency = 'USD';
-      } else if (feesManuallyEdited) {
-        const defaultFees = calculateFees(financial.amountSent, financial.currency);
-        if (financial.fees !== defaultFees) {
-          transferData.fees = financial.fees;
-        }
+      } else {
+        // USA → BF : frais saisis tels quels (aucun plafond côté serveur)
+        transferData.fees = financial.fees;
       }
 
       const result = await transfersAPI.create(transferData, beneficiaryIdProofFile);
@@ -489,7 +659,7 @@ export const NewTransfer = () => {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
-                Choisir un expéditeur existant (base de données)
+                Choisir un expéditeur existant (liste)
               </label>
               <select
                 value={selectedSenderId ?? ''}
@@ -498,7 +668,18 @@ export const NewTransfer = () => {
                   setSelectedSenderId(id);
                   if (id) {
                     const s = sendersList.find((x) => x.id === id);
-                    if (s) setSender({ ...sender, firstName: s.firstName, lastName: s.lastName, phone: s.phone, email: s.email || '', country: sender.country, sendMethod: sender.sendMethod });
+                    if (s) {
+                      const c = s.country || sender.country;
+                      setSender({
+                        ...sender,
+                        firstName: s.firstName,
+                        lastName: s.lastName,
+                        phone: s.phone,
+                        email: s.email || '',
+                        country: c,
+                        sendMethod: getDefaultSendMethodForCountry(c),
+                      });
+                    }
                   }
                 }}
                 disabled={loadingSenders}
@@ -511,36 +692,51 @@ export const NewTransfer = () => {
                   </option>
                 ))}
               </select>
+              <p className="text-xs text-gray-500 mt-1">
+                En dessous : tapez prénom, nom ou téléphone — des propositions apparaissent automatiquement.
+              </p>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
-                  Prénom *
-                </label>
-                <input
-                  type="text"
-                  value={sender.firstName}
-                  onChange={(e) => setSender({ ...sender, firstName: e.target.value })}
-                  className="w-full px-3 sm:px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-base"
-                  placeholder="John"
-                />
+            <div className="relative space-y-4 sm:space-y-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
+                    Prénom *
+                  </label>
+                  <input
+                    type="text"
+                    value={sender.firstName}
+                    onChange={(e) => {
+                      setSelectedSenderId(null);
+                      setSender({ ...sender, firstName: e.target.value });
+                      setSenderSuggestionsOpen(true);
+                    }}
+                    onFocus={() => setSenderSuggestionsOpen(true)}
+                    autoComplete="off"
+                    className="w-full px-3 sm:px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-base"
+                    placeholder="John"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
+                    Nom *
+                  </label>
+                  <input
+                    type="text"
+                    value={sender.lastName}
+                    onChange={(e) => {
+                      setSelectedSenderId(null);
+                      setSender({ ...sender, lastName: e.target.value });
+                      setSenderSuggestionsOpen(true);
+                    }}
+                    onFocus={() => setSenderSuggestionsOpen(true)}
+                    autoComplete="off"
+                    className="w-full px-3 sm:px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-base"
+                    placeholder="Smith"
+                  />
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
-                  Nom *
-                </label>
-                <input
-                  type="text"
-                  value={sender.lastName}
-                  onChange={(e) => setSender({ ...sender, lastName: e.target.value })}
-                  className="w-full px-3 sm:px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-base"
-                  placeholder="Smith"
-                />
-              </div>
-            </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
                   <Phone className="w-4 h-4 inline mr-1" />
@@ -549,24 +745,70 @@ export const NewTransfer = () => {
                 <input
                   type="tel"
                   value={sender.phone}
-                  onChange={(e) => setSender({ ...sender, phone: e.target.value })}
+                  onChange={(e) => {
+                    setSelectedSenderId(null);
+                    setSender({ ...sender, phone: e.target.value });
+                    setSenderSuggestionsOpen(true);
+                  }}
+                  onFocus={() => setSenderSuggestionsOpen(true)}
+                  autoComplete="off"
                   className="w-full px-3 sm:px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-base"
                   placeholder="+1 555 123 4567"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
-                  <Mail className="w-4 h-4 inline mr-1" />
-                  Email (optionnel)
-                </label>
-                <input
-                  type="email"
-                  value={sender.email}
-                  onChange={(e) => setSender({ ...sender, email: e.target.value })}
-                  className="w-full px-3 sm:px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-base"
-                  placeholder="john.smith@email.com"
-                />
-              </div>
+
+              {debouncedSenderSearch.length >= 2 && senderSuggestionsOpen && (
+                <div
+                  className="absolute left-0 right-0 top-full z-20 mt-1 rounded-xl border border-emerald-200 bg-white shadow-lg max-h-56 overflow-y-auto"
+                  role="listbox"
+                >
+                  {senderTypeaheadLoading && (
+                    <div className="flex items-center gap-2 px-3 py-2.5 text-sm text-gray-600">
+                      <Loader2 className="w-4 h-4 animate-spin text-emerald-600" />
+                      Recherche…
+                    </div>
+                  )}
+                  {!senderTypeaheadLoading &&
+                    senderTypeahead.map((s) => (
+                      <button
+                        key={s.id}
+                        type="button"
+                        role="option"
+                        className="w-full text-left px-3 py-2.5 text-sm hover:bg-emerald-50 border-b border-gray-100 last:border-0"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => applySenderSuggestion(s)}
+                      >
+                        <span className="font-medium text-gray-900">
+                          {s.firstName} {s.lastName}
+                        </span>
+                        <span className="text-gray-600"> — {s.phone}</span>
+                        {s.email ? (
+                          <span className="text-gray-500"> · {s.email}</span>
+                        ) : null}
+                      </button>
+                    ))}
+                  {!senderTypeaheadLoading && senderTypeahead.length === 0 && (
+                    <div className="px-3 py-2.5 text-sm text-gray-500">Aucun expéditeur trouvé pour cette recherche.</div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
+                <Mail className="w-4 h-4 inline mr-1" />
+                Email (optionnel)
+              </label>
+              <input
+                type="email"
+                value={sender.email}
+                onChange={(e) => {
+                  setSelectedSenderId(null);
+                  setSender({ ...sender, email: e.target.value });
+                }}
+                className="w-full px-3 sm:px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-base"
+                placeholder="john.smith@email.com"
+              />
             </div>
 
             <div>
@@ -638,7 +880,7 @@ export const NewTransfer = () => {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
-                Choisir un bénéficiaire existant (base de données)
+                Choisir un bénéficiaire existant (liste)
               </label>
               <select
                 value={selectedBeneficiaryId ?? ''}
@@ -647,7 +889,17 @@ export const NewTransfer = () => {
                   setSelectedBeneficiaryId(id);
                   if (id) {
                     const b = beneficiariesList.find((x) => x.id === id);
-                    if (b) setBeneficiary({ ...beneficiary, firstName: b.firstName, lastName: b.lastName, phone: b.phone, country: beneficiary.country, city: b.city || '', idType: beneficiary.idType, idNumber: beneficiary.idNumber });
+                    if (b)
+                      setBeneficiary({
+                        ...beneficiary,
+                        firstName: b.firstName,
+                        lastName: b.lastName,
+                        phone: b.phone,
+                        country: beneficiary.country,
+                        city: b.city || '',
+                        idType: mapApiIdTypeToForm((b as { idType?: string }).idType),
+                        idNumber: (b as { idNumber?: string }).idNumber || '',
+                      });
                   }
                 }}
                 disabled={loadingBeneficiaries}
@@ -660,47 +912,106 @@ export const NewTransfer = () => {
                   </option>
                 ))}
               </select>
+              <p className="text-xs text-gray-500 mt-1">
+                En dessous : tapez prénom, nom ou téléphone — des propositions apparaissent automatiquement (base en ligne).
+              </p>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
-                  Prénom *
-                </label>
-                <input
-                  type="text"
-                  value={beneficiary.firstName}
-                  onChange={(e) => setBeneficiary({ ...beneficiary, firstName: e.target.value })}
-                  className="w-full px-3 sm:px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-base"
-                  placeholder="Amadou"
-                />
+            <div className="relative space-y-4 sm:space-y-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
+                    Prénom *
+                  </label>
+                  <input
+                    type="text"
+                    value={beneficiary.firstName}
+                    onChange={(e) => {
+                      setSelectedBeneficiaryId(null);
+                      setBeneficiary({ ...beneficiary, firstName: e.target.value });
+                      setBeneficiarySuggestionsOpen(true);
+                    }}
+                    onFocus={() => setBeneficiarySuggestionsOpen(true)}
+                    autoComplete="off"
+                    className="w-full px-3 sm:px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-base"
+                    placeholder="Amadou"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
+                    Nom *
+                  </label>
+                  <input
+                    type="text"
+                    value={beneficiary.lastName}
+                    onChange={(e) => {
+                      setSelectedBeneficiaryId(null);
+                      setBeneficiary({ ...beneficiary, lastName: e.target.value });
+                      setBeneficiarySuggestionsOpen(true);
+                    }}
+                    onFocus={() => setBeneficiarySuggestionsOpen(true)}
+                    autoComplete="off"
+                    className="w-full px-3 sm:px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-base"
+                    placeholder="Ouédraogo"
+                  />
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
-                  Nom *
-                </label>
-                <input
-                  type="text"
-                  value={beneficiary.lastName}
-                  onChange={(e) => setBeneficiary({ ...beneficiary, lastName: e.target.value })}
-                  className="w-full px-3 sm:px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-base"
-                  placeholder="Ouédraogo"
-                />
-              </div>
-            </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
-                <Phone className="w-4 h-4 inline mr-1" />
-                Téléphone *
-              </label>
-              <input
-                type="tel"
-                value={beneficiary.phone}
-                onChange={(e) => setBeneficiary({ ...beneficiary, phone: e.target.value })}
-                className="w-full px-3 sm:px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-base"
-                placeholder="+226 70 12 34 56"
-              />
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
+                  <Phone className="w-4 h-4 inline mr-1" />
+                  Téléphone *
+                </label>
+                <input
+                  type="tel"
+                  value={beneficiary.phone}
+                  onChange={(e) => {
+                    setSelectedBeneficiaryId(null);
+                    setBeneficiary({ ...beneficiary, phone: e.target.value });
+                    setBeneficiarySuggestionsOpen(true);
+                  }}
+                  onFocus={() => setBeneficiarySuggestionsOpen(true)}
+                  autoComplete="off"
+                  className="w-full px-3 sm:px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-base"
+                  placeholder="+226 70 12 34 56"
+                />
+              </div>
+
+              {debouncedBeneficiarySearch.length >= 2 && beneficiarySuggestionsOpen && (
+                  <div
+                    className="absolute left-0 right-0 top-full z-20 mt-1 rounded-xl border border-blue-200 bg-white shadow-lg max-h-56 overflow-y-auto"
+                    role="listbox"
+                  >
+                    {beneficiaryTypeaheadLoading && (
+                      <div className="flex items-center gap-2 px-3 py-2.5 text-sm text-gray-600">
+                        <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+                        Recherche…
+                      </div>
+                    )}
+                    {!beneficiaryTypeaheadLoading &&
+                      beneficiaryTypeahead.map((b) => (
+                        <button
+                          key={b.id}
+                          type="button"
+                          role="option"
+                          className="w-full text-left px-3 py-2.5 text-sm hover:bg-blue-50 border-b border-gray-100 last:border-0"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => applyBeneficiarySuggestion(b)}
+                        >
+                          <span className="font-medium text-gray-900">
+                            {b.firstName} {b.lastName}
+                          </span>
+                          <span className="text-gray-600"> — {b.phone}</span>
+                          {b.city ? (
+                            <span className="text-gray-500"> · {b.city}</span>
+                          ) : null}
+                        </button>
+                      ))}
+                    {!beneficiaryTypeaheadLoading && beneficiaryTypeahead.length === 0 && (
+                      <div className="px-3 py-2.5 text-sm text-gray-500">Aucun bénéficiaire trouvé pour cette recherche.</div>
+                    )}
+                  </div>
+                )}
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
@@ -950,19 +1261,38 @@ export const NewTransfer = () => {
                       </span>
                     ) : (
                       <input
-                        type="number"
+                        type="text"
                         inputMode="decimal"
-                        min="0"
-                        max={computeAutoFees()}
-                        step="0.01"
-                        value={financial.fees}
+                        autoComplete="off"
+                        value={feesText}
                         onChange={(e) => {
-                          const newFees = parseFloat(e.target.value) || 0;
-                          const maxFees = computeAutoFees();
-                          if (newFees <= maxFees && newFees >= 0) {
-                            setFinancial(prev => ({ ...prev, fees: newFees }));
-                            setFeesManuallyEdited(true);
+                          const v = e.target.value;
+                          setFeesText(v);
+                          setFeesManuallyEdited(true);
+                          const raw = v.replace(/\s/g, '').replace(',', '.');
+                          if (raw === '' || raw === '.') {
+                            setFinancial((prev) => ({ ...prev, fees: 0 }));
+                            return;
                           }
+                          const n = parseFloat(raw);
+                          if (Number.isFinite(n) && n >= 0) {
+                            setFinancial((prev) => ({ ...prev, fees: n }));
+                          }
+                        }}
+                        onBlur={() => {
+                          const raw = feesText.replace(/\s/g, '').replace(',', '.');
+                          if (raw === '' || raw === '.') {
+                            setFeesText('0');
+                            setFinancial((prev) => ({ ...prev, fees: 0 }));
+                            return;
+                          }
+                          const n = parseFloat(raw);
+                          if (!Number.isFinite(n) || n < 0) {
+                            setFeesText(String(financial.fees));
+                            return;
+                          }
+                          setFeesText(String(n));
+                          setFinancial((prev) => ({ ...prev, fees: n }));
                         }}
                         className="text-lg sm:text-2xl font-bold text-amber-600 bg-transparent border-none p-0 w-full focus:outline-none focus:ring-0"
                         style={{ WebkitAppearance: 'none', MozAppearance: 'textfield' }}
@@ -970,9 +1300,9 @@ export const NewTransfer = () => {
                     )}
                     <span className="text-sm sm:text-base text-amber-600">{feeCurrency}</span>
                   </div>
-                  {feesManuallyEdited && !isBFtoUSA && (
+                  {!isBFtoUSA && (
                     <p className="text-[10px] sm:text-xs text-gray-400 mt-1">
-                      Max: {computeAutoFees()} {feeCurrency}
+                      Grille indicative : {computeAutoFees().toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {feeCurrency} — montant libre
                     </p>
                   )}
                 </div>
@@ -1190,6 +1520,8 @@ export const NewTransfer = () => {
                     useAutoRate: true,
                     fees: 0,
                   });
+                  setFeesManuallyEdited(false);
+                  setFeesText('0');
                   setTransactionRef('');
                 }}
                 className="w-full sm:w-auto px-5 sm:px-6 py-3 bg-emerald-600 text-white rounded-xl font-medium hover:bg-emerald-700 active:bg-emerald-800 transition-colors flex items-center justify-center gap-2 touch-manipulation order-1 sm:order-2"

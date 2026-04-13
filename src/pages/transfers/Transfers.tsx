@@ -10,6 +10,8 @@ import {
 } from 'lucide-react';
 import { getPendingCorridorHighlight } from '@/utils/transferCorridorDisplay';
 
+const RAZACK_EMAIL = 'razack@globalexchange.com';
+
 interface TransferItem {
   id: string;
   reference: string;
@@ -138,11 +140,18 @@ export const Transfers = () => {
     setConfirmModal({ isOpen: true, transferId, reference });
   };
 
-  // Handle cancel
-  const handleCancel = async (transferId: string) => {
+  // Handle cancel (en attente ou déjà payé : contre-passation de toutes les écritures liées au transfert)
+  const handleCancel = async (transferId: string, status: string, reference: string) => {
+    const paidLike = status === 'paid' || status === 'confirmed';
+    if (paidLike) {
+      const ok = window.confirm(
+        `Le transfert ${reference} est déjà payé (ou confirmé). L’annulation va contre-passer toutes les écritures comptables (réception + paiement) pour remettre les caisses à l’équilibre, puis marquer le transfert comme annulé.\n\nContinuer ?`
+      );
+      if (!ok) return;
+    }
     const reason = prompt('Raison de l\'annulation :');
     if (reason === null) return;
-    
+
     try {
       await transfersAPI.cancel(transferId, reason);
       fetchTransfers(true);
@@ -394,11 +403,14 @@ export const Transfers = () => {
                 <Eye className="w-4 h-4" />
               </button>
             )}
-            {row.status === 'pending' && (user?.role === 'admin' || user?.role === 'supervisor') && (
+            {['pending', 'in_progress', 'paid', 'confirmed'].includes(row.status) &&
+              (user?.role === 'admin' ||
+                user?.role === 'supervisor' ||
+                (user?.email || '').toLowerCase() === RAZACK_EMAIL) && (
               <button 
                 className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                title="Annuler"
-                onClick={() => handleCancel(row.id)}
+                title={row.status === 'pending' || row.status === 'in_progress' ? 'Annuler' : 'Annuler (contre-passation comptable)'}
+                onClick={() => handleCancel(row.id, row.status, row.reference)}
               >
                 <Ban className="w-4 h-4" />
               </button>

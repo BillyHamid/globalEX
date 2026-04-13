@@ -4,9 +4,9 @@ import { useAuth } from '@/contexts/AuthContext';
 import { transfersAPI } from '@/services/api';
 import { 
   ArrowLeft, Download, Loader2, XCircle, 
-  User, Phone, MapPin, DollarSign, Calendar, FileText, CheckCircle, Clock, Ban
+  User, Phone, MapPin, DollarSign, Calendar, FileText, CheckCircle, Clock, Ban, Pencil
 } from 'lucide-react';
-import { SEND_METHOD_LABELS } from '@/constants/sendMethods';
+import { SEND_METHOD_LABELS, SEND_METHOD_DISPLAY_ORDER } from '@/constants/sendMethods';
 import { getPendingCorridorHighlight, isBfToUsaCorridor } from '@/utils/transferCorridorDisplay';
 
 interface TransferDetail {
@@ -65,6 +65,50 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }>
   cancelled: { label: 'Annulé', color: 'bg-red-100 text-red-800', icon: Ban },
 };
 
+const RAZACK_EMAIL = 'razack@globalexchange.com';
+
+type EditFormState = {
+  senderFirstName: string;
+  senderLastName: string;
+  senderPhone: string;
+  senderEmail: string;
+  senderCountry: string;
+  benFirstName: string;
+  benLastName: string;
+  benPhone: string;
+  benCountry: string;
+  benCity: string;
+  benIdType: string;
+  benIdNumber: string;
+  amountSent: string;
+  currency: string;
+  exchangeRate: string;
+  fees: string;
+  sendMethod: string;
+  notes: string;
+};
+
+const transferToEditForm = (t: TransferDetail): EditFormState => ({
+  senderFirstName: t.sender.firstName,
+  senderLastName: t.sender.lastName,
+  senderPhone: t.sender.phone,
+  senderEmail: t.sender.email || '',
+  senderCountry: t.sender.country,
+  benFirstName: t.beneficiary.firstName,
+  benLastName: t.beneficiary.lastName,
+  benPhone: t.beneficiary.phone,
+  benCountry: t.beneficiary.country,
+  benCity: t.beneficiary.city,
+  benIdType: t.beneficiary.idType || '',
+  benIdNumber: t.beneficiary.idNumber || '',
+  amountSent: String(t.amountSent),
+  currency: t.currencySent,
+  exchangeRate: String(t.exchangeRate),
+  fees: String(t.fees),
+  sendMethod: t.sendMethod,
+  notes: t.notes || '',
+});
+
 export const TransferDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -72,6 +116,10 @@ export const TransferDetail = () => {
   const [transfer, setTransfer] = useState<TransferDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [editForm, setEditForm] = useState<EditFormState | null>(null);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -111,6 +159,121 @@ export const TransferDetail = () => {
       navigate('/transfers');
     } catch (err: any) {
       alert(err.message || 'Erreur lors de la suppression');
+    }
+  };
+
+  const canCancelTransfer =
+    !!user &&
+    !!transfer &&
+    ['pending', 'in_progress', 'paid', 'confirmed'].includes(transfer.status) &&
+    (user.role === 'admin' ||
+      user.role === 'supervisor' ||
+      (user.email || '').toLowerCase() === RAZACK_EMAIL);
+
+  const handleCancelTransfer = async () => {
+    if (!transfer) return;
+    const paidLike = transfer.status === 'paid' || transfer.status === 'confirmed';
+    if (paidLike) {
+      const ok = window.confirm(
+        `Ce transfert (${transfer.reference}) est déjà payé. L’annulation contre-passera toutes les écritures comptables et marquera le transfert comme annulé. Continuer ?`
+      );
+      if (!ok) return;
+    }
+    const reason = prompt('Raison de l\'annulation :');
+    if (reason === null) return;
+    try {
+      await transfersAPI.cancel(transfer.id, reason);
+      const data = await transfersAPI.getById(transfer.id);
+      setTransfer(data as TransferDetail);
+      setEditing(false);
+      setEditForm(null);
+    } catch (err: any) {
+      alert(err.message || 'Erreur lors de l\'annulation');
+    }
+  };
+
+  const canEditTransfer =
+    !!user &&
+    transfer?.status === 'pending' &&
+    (user.role === 'admin' || (user.email || '').toLowerCase() === RAZACK_EMAIL);
+
+  const startEdit = () => {
+    if (!transfer) return;
+    setEditForm(transferToEditForm(transfer));
+    setEditError(null);
+    setEditing(true);
+  };
+
+  const cancelEdit = () => {
+    setEditing(false);
+    setEditForm(null);
+    setEditError(null);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!transfer || !editForm) return;
+    setEditError(null);
+    const amountSent = parseFloat(editForm.amountSent.replace(',', '.'));
+    const exchangeRate = parseFloat(editForm.exchangeRate.replace(',', '.'));
+    if (!Number.isFinite(amountSent) || amountSent < 1) {
+      setEditError('Montant envoyé invalide');
+      return;
+    }
+    if (!Number.isFinite(exchangeRate) || exchangeRate < 1) {
+      setEditError('Taux de change invalide');
+      return;
+    }
+    const isBfToUsa = editForm.senderCountry === 'BFA' && editForm.benCountry === 'USA';
+    const isUsaToBf = editForm.senderCountry === 'USA' && editForm.benCountry === 'BFA';
+    if (!isBfToUsa && !isUsaToBf) {
+      setEditError('Corridor invalide : expéditeur USA → bénéficiaire BF, ou l’inverse.');
+      return;
+    }
+    let currencyReceived: string | undefined;
+    if (isUsaToBf) currencyReceived = 'XOF';
+    if (isBfToUsa) currencyReceived = 'USD';
+
+    const payload: Parameters<typeof transfersAPI.update>[1] = {
+      sender: {
+        firstName: editForm.senderFirstName.trim(),
+        lastName: editForm.senderLastName.trim(),
+        phone: editForm.senderPhone.trim(),
+        email: editForm.senderEmail.trim() || undefined,
+        country: editForm.senderCountry,
+      },
+      beneficiary: {
+        firstName: editForm.benFirstName.trim(),
+        lastName: editForm.benLastName.trim(),
+        phone: editForm.benPhone.trim(),
+        country: editForm.benCountry,
+        city: editForm.benCity.trim(),
+        idType: editForm.benIdType.trim() || undefined,
+        idNumber: editForm.benIdNumber.trim() || undefined,
+      },
+      amountSent,
+      currency: editForm.currency,
+      exchangeRate,
+      sendMethod: editForm.sendMethod,
+      notes: editForm.notes.trim() || undefined,
+      currencyReceived,
+    };
+    const feeVal = parseFloat(editForm.fees.replace(',', '.'));
+    if (!Number.isFinite(feeVal) || feeVal < 0) {
+      setEditError('Frais invalides');
+      return;
+    }
+    payload.fees = feeVal;
+
+    setSavingEdit(true);
+    try {
+      const data = await transfersAPI.update(transfer.id, payload);
+      setTransfer(data as TransferDetail);
+      setEditing(false);
+      setEditForm(null);
+    } catch (err: any) {
+      setEditError(err.message || 'Erreur lors de l’enregistrement');
+    } finally {
+      setSavingEdit(false);
     }
   };
 
@@ -167,16 +330,108 @@ export const TransferDetail = () => {
             <p className="text-gray-600 mt-1">Détails du transfert</p>
           </div>
         </div>
-        {user.role === 'admin' && (
-          <button
-            onClick={handleDelete}
-            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2"
-          >
-            <Ban className="w-4 h-4" />
-            Supprimer
-          </button>
-        )}
+        <div className="flex flex-wrap gap-2">
+          {canEditTransfer && (
+            <button
+              type="button"
+              onClick={editing ? cancelEdit : startEdit}
+              className="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors flex items-center gap-2"
+            >
+              <Pencil className="w-4 h-4" />
+              {editing ? 'Annuler la modification' : 'Modifier'}
+            </button>
+          )}
+          {canCancelTransfer && (
+            <button
+              type="button"
+              onClick={handleCancelTransfer}
+              className="px-4 py-2 border border-red-300 text-red-700 bg-red-50 rounded-lg hover:bg-red-100 transition-colors flex items-center gap-2"
+            >
+              <XCircle className="w-4 h-4" />
+              Annuler le transfert
+            </button>
+          )}
+          {user.role === 'admin' && (
+            <button
+              onClick={handleDelete}
+              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2"
+            >
+              <Ban className="w-4 h-4" />
+              Supprimer
+            </button>
+          )}
+        </div>
       </div>
+
+      {editing && editForm && (
+        <div className="bg-amber-50/80 border border-amber-200 rounded-xl p-6 space-y-4">
+          <h2 className="text-lg font-bold text-gray-900">Modifier le transfert (en attente)</h2>
+          <p className="text-sm text-gray-600">
+            Réservé à l&apos;administrateur et à Razack. Les montants ou le corridor peuvent recalculer l&apos;écriture de caisse initiale.
+          </p>
+          {editError && (
+            <div className="text-sm text-red-700 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{editError}</div>
+          )}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-gray-500 uppercase">Expéditeur</p>
+              <input className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="Prénom" value={editForm.senderFirstName} onChange={(e) => setEditForm({ ...editForm, senderFirstName: e.target.value })} />
+              <input className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="Nom" value={editForm.senderLastName} onChange={(e) => setEditForm({ ...editForm, senderLastName: e.target.value })} />
+              <input className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="Téléphone" value={editForm.senderPhone} onChange={(e) => setEditForm({ ...editForm, senderPhone: e.target.value })} />
+              <input className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="Email (optionnel)" value={editForm.senderEmail} onChange={(e) => setEditForm({ ...editForm, senderEmail: e.target.value })} />
+              <select className="w-full border rounded-lg px-3 py-2 text-sm" value={editForm.senderCountry} onChange={(e) => setEditForm({ ...editForm, senderCountry: e.target.value })}>
+                <option value="USA">USA</option>
+                <option value="BFA">Burkina Faso (BFA)</option>
+              </select>
+            </div>
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-gray-500 uppercase">Bénéficiaire</p>
+              <input className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="Prénom" value={editForm.benFirstName} onChange={(e) => setEditForm({ ...editForm, benFirstName: e.target.value })} />
+              <input className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="Nom" value={editForm.benLastName} onChange={(e) => setEditForm({ ...editForm, benLastName: e.target.value })} />
+              <input className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="Téléphone" value={editForm.benPhone} onChange={(e) => setEditForm({ ...editForm, benPhone: e.target.value })} />
+              <input className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="Ville" value={editForm.benCity} onChange={(e) => setEditForm({ ...editForm, benCity: e.target.value })} />
+              <select className="w-full border rounded-lg px-3 py-2 text-sm" value={editForm.benCountry} onChange={(e) => setEditForm({ ...editForm, benCountry: e.target.value })}>
+                <option value="USA">USA</option>
+                <option value="BFA">Burkina Faso (BFA)</option>
+              </select>
+              <input className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="Type pièce (optionnel)" value={editForm.benIdType} onChange={(e) => setEditForm({ ...editForm, benIdType: e.target.value })} />
+              <input className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="N° pièce (optionnel)" value={editForm.benIdNumber} onChange={(e) => setEditForm({ ...editForm, benIdNumber: e.target.value })} />
+            </div>
+            <div className="space-y-2 md:col-span-2">
+              <p className="text-xs font-semibold text-gray-500 uppercase">Financier</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <input className="w-full border rounded-lg px-3 py-2 text-sm" type="text" inputMode="decimal" placeholder="Montant envoyé" value={editForm.amountSent} onChange={(e) => setEditForm({ ...editForm, amountSent: e.target.value })} />
+                <select className="w-full border rounded-lg px-3 py-2 text-sm" value={editForm.currency} onChange={(e) => setEditForm({ ...editForm, currency: e.target.value })}>
+                  <option value="USD">USD</option>
+                  <option value="XOF">XOF</option>
+                </select>
+                <input className="w-full border rounded-lg px-3 py-2 text-sm" type="text" inputMode="decimal" placeholder="Taux de change" value={editForm.exchangeRate} onChange={(e) => setEditForm({ ...editForm, exchangeRate: e.target.value })} />
+                <input className="w-full border rounded-lg px-3 py-2 text-sm" type="text" inputMode="decimal" placeholder="Frais" value={editForm.fees} onChange={(e) => setEditForm({ ...editForm, fees: e.target.value })} />
+              </div>
+              <select className="w-full max-w-md border rounded-lg px-3 py-2 text-sm" value={editForm.sendMethod} onChange={(e) => setEditForm({ ...editForm, sendMethod: e.target.value })}>
+                {SEND_METHOD_DISPLAY_ORDER.map((id) => (
+                  <option key={id} value={id}>{SEND_METHOD_LABELS[id] || id}</option>
+                ))}
+              </select>
+              <textarea className="w-full border rounded-lg px-3 py-2 text-sm min-h-[72px]" placeholder="Notes (optionnel)" value={editForm.notes} onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })} />
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={handleSaveEdit}
+              disabled={savingEdit}
+              className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 flex items-center gap-2"
+            >
+              {savingEdit ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+              Enregistrer
+            </button>
+            <button type="button" onClick={cancelEdit} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm">
+              Fermer sans enregistrer
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Main Content */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
