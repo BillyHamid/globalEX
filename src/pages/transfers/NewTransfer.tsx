@@ -697,44 +697,82 @@ export const NewTransfer = () => {
               </p>
             </div>
 
-            <div className="relative space-y-4 sm:space-y-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
-                    Prénom *
-                  </label>
-                  <input
-                    type="text"
-                    value={sender.firstName}
-                    onChange={(e) => {
-                      setSelectedSenderId(null);
-                      setSender({ ...sender, firstName: e.target.value });
-                      setSenderSuggestionsOpen(true);
-                    }}
-                    onFocus={() => setSenderSuggestionsOpen(true)}
-                    autoComplete="off"
-                    className="w-full px-3 sm:px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-base"
-                    placeholder="John"
-                  />
+            <div className="space-y-4 sm:space-y-6">
+              <div className="relative">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
+                      Prénom *
+                    </label>
+                    <input
+                      type="text"
+                      value={sender.firstName}
+                      onChange={(e) => {
+                        setSelectedSenderId(null);
+                        setSender({ ...sender, firstName: e.target.value });
+                        setSenderSuggestionsOpen(true);
+                      }}
+                      onFocus={() => setSenderSuggestionsOpen(true)}
+                      autoComplete="off"
+                      className="w-full px-3 sm:px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-base"
+                      placeholder="John"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
+                      Nom *
+                    </label>
+                    <input
+                      type="text"
+                      value={sender.lastName}
+                      onChange={(e) => {
+                        setSelectedSenderId(null);
+                        setSender({ ...sender, lastName: e.target.value });
+                        setSenderSuggestionsOpen(true);
+                      }}
+                      onFocus={() => setSenderSuggestionsOpen(true)}
+                      autoComplete="off"
+                      className="w-full px-3 sm:px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-base"
+                      placeholder="Smith"
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
-                    Nom *
-                  </label>
-                  <input
-                    type="text"
-                    value={sender.lastName}
-                    onChange={(e) => {
-                      setSelectedSenderId(null);
-                      setSender({ ...sender, lastName: e.target.value });
-                      setSenderSuggestionsOpen(true);
-                    }}
-                    onFocus={() => setSenderSuggestionsOpen(true)}
-                    autoComplete="off"
-                    className="w-full px-3 sm:px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-base"
-                    placeholder="Smith"
-                  />
-                </div>
+
+                {debouncedSenderSearch.length >= 2 && senderSuggestionsOpen && (
+                  <div
+                    className="absolute left-0 right-0 top-full z-30 mt-1 rounded-xl border border-emerald-200 bg-white shadow-lg max-h-56 overflow-y-auto"
+                    role="listbox"
+                  >
+                    {senderTypeaheadLoading && (
+                      <div className="flex items-center gap-2 px-3 py-2.5 text-sm text-gray-600">
+                        <Loader2 className="w-4 h-4 animate-spin text-emerald-600" />
+                        Recherche…
+                      </div>
+                    )}
+                    {!senderTypeaheadLoading &&
+                      senderTypeahead.map((s) => (
+                        <button
+                          key={s.id}
+                          type="button"
+                          role="option"
+                          className="w-full text-left px-3 py-2.5 text-sm hover:bg-emerald-50 border-b border-gray-100 last:border-0"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => applySenderSuggestion(s)}
+                        >
+                          <span className="font-medium text-gray-900">
+                            {s.firstName} {s.lastName}
+                          </span>
+                          <span className="text-gray-600"> — {s.phone}</span>
+                          {s.email ? (
+                            <span className="text-gray-500"> · {s.email}</span>
+                          ) : null}
+                        </button>
+                      ))}
+                    {!senderTypeaheadLoading && senderTypeahead.length === 0 && (
+                      <div className="px-3 py-2.5 text-sm text-gray-500">Aucun expéditeur trouvé pour cette recherche.</div>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div>
@@ -756,42 +794,6 @@ export const NewTransfer = () => {
                   placeholder="+1 555 123 4567"
                 />
               </div>
-
-              {debouncedSenderSearch.length >= 2 && senderSuggestionsOpen && (
-                <div
-                  className="absolute left-0 right-0 top-full z-20 mt-1 rounded-xl border border-emerald-200 bg-white shadow-lg max-h-56 overflow-y-auto"
-                  role="listbox"
-                >
-                  {senderTypeaheadLoading && (
-                    <div className="flex items-center gap-2 px-3 py-2.5 text-sm text-gray-600">
-                      <Loader2 className="w-4 h-4 animate-spin text-emerald-600" />
-                      Recherche…
-                    </div>
-                  )}
-                  {!senderTypeaheadLoading &&
-                    senderTypeahead.map((s) => (
-                      <button
-                        key={s.id}
-                        type="button"
-                        role="option"
-                        className="w-full text-left px-3 py-2.5 text-sm hover:bg-emerald-50 border-b border-gray-100 last:border-0"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => applySenderSuggestion(s)}
-                      >
-                        <span className="font-medium text-gray-900">
-                          {s.firstName} {s.lastName}
-                        </span>
-                        <span className="text-gray-600"> — {s.phone}</span>
-                        {s.email ? (
-                          <span className="text-gray-500"> · {s.email}</span>
-                        ) : null}
-                      </button>
-                    ))}
-                  {!senderTypeaheadLoading && senderTypeahead.length === 0 && (
-                    <div className="px-3 py-2.5 text-sm text-gray-500">Aucun expéditeur trouvé pour cette recherche.</div>
-                  )}
-                </div>
-              )}
             </div>
 
             <div>
@@ -917,69 +919,50 @@ export const NewTransfer = () => {
               </p>
             </div>
 
-            <div className="relative space-y-4 sm:space-y-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
-                    Prénom *
-                  </label>
-                  <input
-                    type="text"
-                    value={beneficiary.firstName}
-                    onChange={(e) => {
-                      setSelectedBeneficiaryId(null);
-                      setBeneficiary({ ...beneficiary, firstName: e.target.value });
-                      setBeneficiarySuggestionsOpen(true);
-                    }}
-                    onFocus={() => setBeneficiarySuggestionsOpen(true)}
-                    autoComplete="off"
-                    className="w-full px-3 sm:px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-base"
-                    placeholder="Amadou"
-                  />
+            <div className="space-y-4 sm:space-y-6">
+              <div className="relative">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
+                      Prénom *
+                    </label>
+                    <input
+                      type="text"
+                      value={beneficiary.firstName}
+                      onChange={(e) => {
+                        setSelectedBeneficiaryId(null);
+                        setBeneficiary({ ...beneficiary, firstName: e.target.value });
+                        setBeneficiarySuggestionsOpen(true);
+                      }}
+                      onFocus={() => setBeneficiarySuggestionsOpen(true)}
+                      autoComplete="off"
+                      className="w-full px-3 sm:px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-base"
+                      placeholder="Amadou"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
+                      Nom *
+                    </label>
+                    <input
+                      type="text"
+                      value={beneficiary.lastName}
+                      onChange={(e) => {
+                        setSelectedBeneficiaryId(null);
+                        setBeneficiary({ ...beneficiary, lastName: e.target.value });
+                        setBeneficiarySuggestionsOpen(true);
+                      }}
+                      onFocus={() => setBeneficiarySuggestionsOpen(true)}
+                      autoComplete="off"
+                      className="w-full px-3 sm:px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-base"
+                      placeholder="Ouédraogo"
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
-                    Nom *
-                  </label>
-                  <input
-                    type="text"
-                    value={beneficiary.lastName}
-                    onChange={(e) => {
-                      setSelectedBeneficiaryId(null);
-                      setBeneficiary({ ...beneficiary, lastName: e.target.value });
-                      setBeneficiarySuggestionsOpen(true);
-                    }}
-                    onFocus={() => setBeneficiarySuggestionsOpen(true)}
-                    autoComplete="off"
-                    className="w-full px-3 sm:px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-base"
-                    placeholder="Ouédraogo"
-                  />
-                </div>
-              </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
-                  <Phone className="w-4 h-4 inline mr-1" />
-                  Téléphone *
-                </label>
-                <input
-                  type="tel"
-                  value={beneficiary.phone}
-                  onChange={(e) => {
-                    setSelectedBeneficiaryId(null);
-                    setBeneficiary({ ...beneficiary, phone: e.target.value });
-                    setBeneficiarySuggestionsOpen(true);
-                  }}
-                  onFocus={() => setBeneficiarySuggestionsOpen(true)}
-                  autoComplete="off"
-                  className="w-full px-3 sm:px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-base"
-                  placeholder="+226 70 12 34 56"
-                />
-              </div>
-
-              {debouncedBeneficiarySearch.length >= 2 && beneficiarySuggestionsOpen && (
+                {debouncedBeneficiarySearch.length >= 2 && beneficiarySuggestionsOpen && (
                   <div
-                    className="absolute left-0 right-0 top-full z-20 mt-1 rounded-xl border border-blue-200 bg-white shadow-lg max-h-56 overflow-y-auto"
+                    className="absolute left-0 right-0 top-full z-30 mt-1 rounded-xl border border-blue-200 bg-white shadow-lg max-h-56 overflow-y-auto"
                     role="listbox"
                   >
                     {beneficiaryTypeaheadLoading && (
@@ -1012,6 +995,27 @@ export const NewTransfer = () => {
                     )}
                   </div>
                 )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
+                  <Phone className="w-4 h-4 inline mr-1" />
+                  Téléphone *
+                </label>
+                <input
+                  type="tel"
+                  value={beneficiary.phone}
+                  onChange={(e) => {
+                    setSelectedBeneficiaryId(null);
+                    setBeneficiary({ ...beneficiary, phone: e.target.value });
+                    setBeneficiarySuggestionsOpen(true);
+                  }}
+                  onFocus={() => setBeneficiarySuggestionsOpen(true)}
+                  autoComplete="off"
+                  className="w-full px-3 sm:px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-base"
+                  placeholder="+226 70 12 34 56"
+                />
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
