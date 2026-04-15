@@ -445,13 +445,16 @@ export const NewTransfer = () => {
 
   // BF → USA : frais = (montant / taux_reel) - (montant / taux_paiement) → USD
   // taux_paiement = financial.exchangeRate (modifiable par l'utilisateur)
-  // USA → BF : grille de frais fixe en USD
+  // USA → BF : grille indicative en USD selon le montant envoyé (alignée sur le backend calculateFees)
   const computeAutoFees = (): number => {
     if (isBFtoUSA && financial.amountSent > 0) {
       const rr = liveRateDetails?.rateReel ?? FALLBACK_RATE_REEL;
       const rp = financial.exchangeRate;
       if (rp <= rr) return 0;
       return Math.round(((financial.amountSent / rr) - (financial.amountSent / rp)) * 100) / 100;
+    }
+    if (isUSAtoBF) {
+      return calculateFees(financial.amountSent, 'USD');
     }
     return calculateFees(financial.amountSent, financial.currency);
   };
@@ -463,7 +466,7 @@ export const NewTransfer = () => {
       const fees = computeAutoFees();
       setFinancial(prev => ({ ...prev, fees }));
     }
-  }, [financial.amountSent, financial.currency, financial.exchangeRate, feesManuallyEdited, isBFtoUSA, liveRateDetails]);
+  }, [financial.amountSent, financial.currency, financial.exchangeRate, feesManuallyEdited, isBFtoUSA, isUSAtoBF, liveRateDetails]);
 
   useEffect(() => {
     if (isBFtoUSA) return;
@@ -517,10 +520,24 @@ export const NewTransfer = () => {
     }
   };
 
+  /** Frais réellement envoyés : pour USA→BF on lit le champ texte (source de vérité affichée), évite tout décalage avec `financial.fees`. */
+  const getFeesForApi = (): number => {
+    if (isBFtoUSA) return financial.fees;
+    if (isUSAtoBF) {
+      const raw = feesText.replace(/\s/g, '').replace(',', '.');
+      if (raw === '' || raw === '.') return financial.fees;
+      const n = parseFloat(raw);
+      return Number.isFinite(n) && n >= 0 ? n : financial.fees;
+    }
+    return financial.fees;
+  };
+
   const handleSubmit = async () => {
     setIsSubmitting(true);
     
     try {
+      const feesForApi = getFeesForApi();
+
       const transferData: any = {
         sender: {
           firstName: sender.firstName,
@@ -547,11 +564,11 @@ export const NewTransfer = () => {
       
       if (isBFtoUSA) {
         // BF → USA : frais calculés par la marge du taux (toujours envoyés)
-        transferData.fees = financial.fees;
+        transferData.fees = feesForApi;
         transferData.feeCurrency = 'USD';
       } else {
-        // USA → BF : frais saisis tels quels (aucun plafond côté serveur)
-        transferData.fees = financial.fees;
+        // USA → BF : valeur affichée / saisie (grille = indicative uniquement côté API à jour)
+        transferData.fees = feesForApi;
       }
 
       const result = await transfersAPI.create(transferData, beneficiaryIdProofFile);
@@ -1269,6 +1286,7 @@ export const NewTransfer = () => {
                         inputMode="decimal"
                         autoComplete="off"
                         value={feesText}
+                        onFocus={() => setFeesManuallyEdited(true)}
                         onChange={(e) => {
                           const v = e.target.value;
                           setFeesText(v);
