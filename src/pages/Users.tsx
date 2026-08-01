@@ -1,77 +1,89 @@
+import { useEffect, useState } from 'react';
 import { DataTable } from '@/components/common/DataTable';
 import { StatusBadge } from '@/components/common/StatusBadge';
+import { UserFormModal, UserFormValues } from '@/components/users/UserFormModal';
 import { User } from '@/types';
-import { Plus, Edit, Trash2, MapPin } from 'lucide-react';
+import { Plus, Edit, Trash2, MapPin, Power } from 'lucide-react';
 import { getRoleLabel, getRoleColor } from '@/utils/roleConfig';
-
-const mockUsers: User[] = [
-  { 
-    id: '1', 
-    email: 'admin@globalexchange.com', 
-    name: 'Admin Système', 
-    role: 'admin',
-    phone: '+1 555 000 0001',
-    country: 'USA',
-    isActive: true,
-    createdAt: '2024-01-01'
-  },
-  { 
-    id: '2', 
-    email: 'superviseur@globalexchange.com', 
-    name: 'Jean Superviseur', 
-    role: 'supervisor',
-    phone: '+1 555 000 0002',
-    country: 'USA',
-    isActive: true,
-    createdAt: '2024-01-01'
-  },
-  { 
-    id: '3', 
-    email: 'agent.usa@globalexchange.com', 
-    name: 'John Smith', 
-    role: 'sender_agent',
-    phone: '+1 555 123 4567',
-    country: 'USA',
-    agentCode: 'USA-001',
-    isActive: true,
-    createdAt: '2024-01-15'
-  },
-  { 
-    id: '4', 
-    email: 'agent.burkina@globalexchange.com', 
-    name: 'Amadou Ouédraogo', 
-    role: 'payer_agent',
-    phone: '+226 70 12 34 56',
-    country: 'Burkina Faso',
-    agentCode: 'BF-001',
-    isActive: true,
-    createdAt: '2024-01-15'
-  },
-  { 
-    id: '5', 
-    email: 'agent.france@globalexchange.com', 
-    name: 'Pierre Dupont', 
-    role: 'sender_agent',
-    phone: '+33 6 12 34 56 78',
-    country: 'France',
-    agentCode: 'FR-001',
-    isActive: true,
-    createdAt: '2024-02-01'
-  },
-  { 
-    id: '6', 
-    email: 'agent.cote@globalexchange.com', 
-    name: 'Kouassi Yao', 
-    role: 'payer_agent',
-    phone: '+225 07 12 34 56',
-    country: 'Côte d\'Ivoire',
-    agentCode: 'CI-001',
-    isActive: true,
-    createdAt: '2024-02-01'
-  },
-];
+import { usersAPI } from '@/services/api';
 
 export const Users = () => {
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+
+  const loadUsers = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await usersAPI.getAll();
+      setUsers(response.data as User[]);
+    } catch (err: any) {
+      setError(err.message || 'Erreur lors du chargement des utilisateurs');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadUsers();
+  }, []);
+
+  const handleOpenCreate = () => {
+    setEditingUser(null);
+    setIsModalOpen(true);
+  };
+
+  const handleOpenEdit = (user: User) => {
+    setEditingUser(user);
+    setIsModalOpen(true);
+  };
+
+  const handleSubmit = async (values: UserFormValues) => {
+    if (editingUser) {
+      await usersAPI.update(editingUser.id, {
+        name: values.name,
+        phone: values.phone || undefined,
+        country: values.country || undefined,
+        agentCode: values.agentCode || undefined,
+        role: values.role,
+      });
+    } else {
+      await usersAPI.create({
+        email: values.email,
+        password: values.password,
+        name: values.name,
+        phone: values.phone || undefined,
+        role: values.role,
+        country: values.country || undefined,
+        agentCode: values.agentCode || undefined,
+      });
+    }
+    await loadUsers();
+  };
+
+  const handleDelete = async (user: User) => {
+    const ok = window.confirm(`Supprimer l'utilisateur "${user.name}" ? Cette action est irréversible.`);
+    if (!ok) return;
+    try {
+      await usersAPI.delete(user.id);
+      await loadUsers();
+    } catch (err: any) {
+      alert(err.message || 'Erreur lors de la suppression');
+    }
+  };
+
+  const handleToggleActive = async (user: User) => {
+    try {
+      await usersAPI.toggleActive(user.id);
+      await loadUsers();
+    } catch (err: any) {
+      alert(err.message || 'Erreur lors du changement de statut');
+    }
+  };
+
   const columns = [
     {
       header: 'Utilisateur',
@@ -116,12 +128,27 @@ export const Users = () => {
     },
     {
       header: 'Actions',
-      accessor: (_row: User) => (
+      accessor: (row: User) => (
         <div className="flex items-center gap-2">
-          <button className="p-1 text-emerald-600 hover:text-emerald-700" title="Modifier">
+          <button
+            onClick={() => handleOpenEdit(row)}
+            className="p-1 text-emerald-600 hover:text-emerald-700"
+            title="Modifier"
+          >
             <Edit className="w-4 h-4" />
           </button>
-          <button className="p-1 text-red-600 hover:text-red-700" title="Supprimer">
+          <button
+            onClick={() => handleToggleActive(row)}
+            className="p-1 text-blue-600 hover:text-blue-700"
+            title={row.isActive ? 'Désactiver' : 'Activer'}
+          >
+            <Power className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => handleDelete(row)}
+            className="p-1 text-red-600 hover:text-red-700"
+            title="Supprimer"
+          >
             <Trash2 className="w-4 h-4" />
           </button>
         </div>
@@ -136,13 +163,35 @@ export const Users = () => {
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Utilisateurs & Agents</h1>
           <p className="text-gray-600">Gérez les utilisateurs et agents du système</p>
         </div>
-        <button className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors">
+        <button
+          onClick={handleOpenCreate}
+          className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
+        >
           <Plus className="w-5 h-5" />
           Ajouter un utilisateur
         </button>
       </div>
 
-      <DataTable data={mockUsers} columns={columns} />
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+          {error}
+        </div>
+      )}
+
+      {loading ? (
+        <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-12 flex items-center justify-center">
+          <div className="w-8 h-8 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin" />
+        </div>
+      ) : (
+        <DataTable data={users} columns={columns} />
+      )}
+
+      <UserFormModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSubmit={handleSubmit}
+        user={editingUser}
+      />
     </div>
   );
 };
