@@ -56,6 +56,12 @@ export const menuItems: MenuItem[] = [
     roles: ['admin', 'supervisor', 'sender_agent', 'payer_agent'],
   },
   {
+    label: 'Utilisateurs & Agents',
+    path: '/users',
+    icon: 'Users',
+    roles: ['admin', 'supervisor'],
+  },
+  {
     label: 'Dépenses Spéciales',
     path: '/special-expenses',
     icon: 'Wallet',
