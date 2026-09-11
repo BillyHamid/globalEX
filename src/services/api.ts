@@ -190,9 +190,9 @@ export const usersAPI = {
 // TRANSFERS API
 // ==========================================
 export const transfersAPI = {
-  getAll: async (params?: { status?: string; page?: number; limit?: number }) => {
+  getAll: async (params?: { status?: string; startDate?: string; endDate?: string; page?: number; limit?: number }) => {
     const queryString = params ? '?' + new URLSearchParams(params as any).toString() : '';
-    const response = await fetchAPI<{ success: boolean; data: any[]; pagination: any }>(
+    const response = await fetchAPI<{ success: boolean; data: any[]; pagination: any; statusCounts?: Record<string, number> }>(
       `/transfers${queryString}`
     );
     return response;

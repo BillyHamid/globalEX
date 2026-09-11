@@ -78,6 +78,12 @@ export const Transfers = () => {
     if (statusFromUrl && ['pending', 'in_progress', 'paid', 'cancelled'].includes(statusFromUrl)) return statusFromUrl;
     return 'all';
   });
+  // Période sélectionnée au format "YYYY-MM" ('' = tous les mois, aucun filtre de date)
+  const [periodFilter, setPeriodFilter] = useState<string>('');
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState<{ page: number; limit: number; total: number; pages: number } | null>(null);
+  const [statusCounts, setStatusCounts] = useState<Record<string, number>>({});
+  const PAGE_SIZE = 50;
   const [searchTerm, setSearchTerm] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean; transferId: string; reference: string } | null>(null);
@@ -85,7 +91,10 @@ export const Transfers = () => {
   // Garder le filtre synchronisé avec l'URL (?status=pending etc.)
   useEffect(() => {
     const s = searchParams.get('status');
-    if (s && ['pending', 'in_progress', 'paid', 'cancelled'].includes(s) && statusFilter !== s) setStatusFilter(s);
+    if (s && ['pending', 'in_progress', 'paid', 'cancelled'].includes(s) && statusFilter !== s) {
+      setStatusFilter(s);
+      setPage(1);
+    }
   }, [searchParams]);
 
   // Fetch transfers from API
@@ -96,13 +105,23 @@ export const Transfers = () => {
     setError(null);
 
     try {
-      const params: any = { limit: 100 };
+      const params: any = { limit: PAGE_SIZE, page };
       if (statusFilter !== 'all') {
         params.status = statusFilter;
       }
-      
+      if (periodFilter) {
+        // periodFilter = "YYYY-MM" -> on couvre tout le mois sélectionné
+        const [year, month] = periodFilter.split('-').map(Number);
+        const start = new Date(Date.UTC(year, month - 1, 1));
+        const end = new Date(Date.UTC(year, month, 0)); // dernier jour du mois
+        params.startDate = start.toISOString().slice(0, 10);
+        params.endDate = end.toISOString().slice(0, 10);
+      }
+
       const response = await transfersAPI.getAll(params);
       setTransfers(response.data);
+      setPagination(response.pagination || null);
+      setStatusCounts(response.statusCounts || {});
     } catch (err: any) {
       console.error('Error fetching transfers:', err);
       setError(err.message || 'Erreur lors du chargement des transferts');
@@ -114,7 +133,17 @@ export const Transfers = () => {
 
   useEffect(() => {
     fetchTransfers();
-  }, [statusFilter]);
+  }, [statusFilter, periodFilter, page]);
+
+  // Changement de filtre (statut ou période) -> on revient à la page 1
+  const handleStatusFilterChange = (value: string) => {
+    setStatusFilter(value);
+    setPage(1);
+  };
+  const handlePeriodFilterChange = (value: string) => {
+    setPeriodFilter(value);
+    setPage(1);
+  };
 
   // Filter by search term (client-side)
   const filteredTransfers = transfers.filter(transfer => {
@@ -128,11 +157,12 @@ export const Transfers = () => {
     );
   });
 
+  // Basé sur statusCounts (calculé côté serveur sur toute la période filtrée, pas seulement la page affichée)
   const stats = {
-    total: transfers.length,
-    pending: transfers.filter(t => t.status === 'pending').length,
-    paid: transfers.filter(t => t.status === 'paid').length,
-    cancelled: transfers.filter(t => t.status === 'cancelled').length,
+    total: pagination?.total ?? transfers.length,
+    pending: statusCounts.pending || 0,
+    paid: statusCounts.paid || 0,
+    cancelled: statusCounts.cancelled || 0,
   };
 
   // Handle confirm with proof (nouvelle méthode sécurisée)
@@ -503,7 +533,7 @@ export const Transfers = () => {
             <Filter className="w-5 h-5 text-gray-400" />
             <select
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
+              onChange={(e) => handleStatusFilterChange(e.target.value)}
               className="px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
             >
               <option value="all">Tous les statuts</option>
@@ -512,6 +542,23 @@ export const Transfers = () => {
               <option value="paid">Payé</option>
               <option value="cancelled">Annulé</option>
             </select>
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="month"
+              value={periodFilter}
+              onChange={(e) => handlePeriodFilterChange(e.target.value)}
+              title="Filtrer par mois"
+              className="px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            />
+            {periodFilter && (
+              <button
+                onClick={() => handlePeriodFilterChange('')}
+                className="text-sm text-gray-500 hover:text-gray-700 underline whitespace-nowrap"
+              >
+                Tous les mois
+              </button>
+            )}
           </div>
           <button className="px-4 py-3 border border-gray-300 rounded-xl hover:bg-gray-50 flex items-center gap-2 transition-colors">
             <Download className="w-5 h-5" />
@@ -556,7 +603,32 @@ export const Transfers = () => {
         </div>
       ) : (
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-x-auto max-w-full">
-          <DataTable data={filteredTransfers} columns={columns} />
+          {/* pageSize = PAGE_SIZE : le tableau reçoit déjà une page serveur complète (voir pagination ci-dessous),
+              on désactive donc la pagination interne du DataTable pour éviter une double pagination */}
+          <DataTable data={filteredTransfers} columns={columns} pageSize={PAGE_SIZE} searchable={false} />
+          {pagination && pagination.pages > 1 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 border-t border-gray-100">
+              <p className="text-sm text-gray-500">
+                Page {pagination.page} sur {pagination.pages} · {pagination.total} transfert{pagination.total > 1 ? 's' : ''} au total
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  disabled={pagination.page <= 1}
+                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50"
+                >
+                  Précédent
+                </button>
+                <button
+                  onClick={() => setPage(p => Math.min(pagination.pages, p + 1))}
+                  disabled={pagination.page >= pagination.pages}
+                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50"
+                >
+                  Suivant
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
