@@ -1,3 +1,4 @@
+import { hasPermission } from '@/utils/roleConfig';
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { cashAPI } from '@/services/api';
@@ -217,6 +218,8 @@ export const CashDashboard = () => {
           </p>
           <div className="flex gap-2">
             <button
+              disabled={!hasPermission(user, 'cash.entry')}
+              title={hasPermission(user, 'cash.entry') ? undefined : 'Permission non accordée'}
               onClick={() => setEntryModal({ isOpen: true, accountName: 'USA' })}
               className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-sm font-medium"
             >
@@ -224,6 +227,8 @@ export const CashDashboard = () => {
               Entrée
             </button>
             <button
+              disabled={!hasPermission(user, 'cash.expense')}
+              title={hasPermission(user, 'cash.expense') ? undefined : 'Permission non accordée'}
               onClick={() => setExpenseModal({ isOpen: true, accountName: 'USA' })}
               className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
             >
@@ -251,6 +256,8 @@ export const CashDashboard = () => {
           <p className="text-sm text-emerald-700 mb-4">Solde actuel (augmente quand client donne XOF BF→USA, diminue quand on paie au BF pour USA→BF)</p>
           <div className="flex gap-2">
             <button
+              disabled={!hasPermission(user, 'cash.entry')}
+              title={hasPermission(user, 'cash.entry') ? undefined : 'Permission non accordée'}
               onClick={() => setEntryModal({ isOpen: true, accountName: 'BURKINA' })}
               className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-sm font-medium"
             >
@@ -258,6 +265,8 @@ export const CashDashboard = () => {
               Entrée
             </button>
             <button
+              disabled={!hasPermission(user, 'cash.expense')}
+              title={hasPermission(user, 'cash.expense') ? undefined : 'Permission non accordée'}
               onClick={() => setExpenseModal({ isOpen: true, accountName: 'BURKINA' })}
               className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
             >

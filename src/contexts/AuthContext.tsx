@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { User } from '@/types';
 import { authAPI, setAuthToken, getAuthToken, checkAPIHealth } from '@/services/api';
 
@@ -11,6 +11,7 @@ interface AuthContextType {
   isLoading: boolean;
   error: string | null;
   isBackendAvailable: boolean;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -24,80 +25,27 @@ export const useAuth = () => {
   return context;
 };
 
-// Mock users - fallback when backend is not available
-const MOCK_USERS: User[] = [
-  { 
-    id: '1', 
-    email: 'admin@globalexchange.com', 
-    name: 'Admin Système', 
-    role: 'admin',
-    phone: '+1 555 000 0001',
-    country: 'USA',
-    isActive: true,
-    createdAt: '2024-01-01'
-  },
-  { 
-    id: '2', 
-    email: 'superviseur@globalexchange.com', 
-    name: 'Jean Superviseur', 
-    role: 'supervisor',
-    phone: '+1 555 000 0002',
-    country: 'USA',
-    isActive: true,
-    createdAt: '2024-01-01'
-  },
-  { 
-    id: '3', 
-    email: 'razack@globalexchange.com', 
-    name: 'Zongo Razack', 
-    role: 'sender_agent',
-    phone: '+1 555 123 4567',
-    country: 'USA',
-    agentCode: 'USA-001',
-    isActive: true,
-    createdAt: '2024-01-15'
-  },
-  { 
-    id: '4', 
-    email: 'bernadette@globalexchange.com', 
-    name: 'Bernadette Tassembedo', 
-    role: 'payer_agent',
-    phone: '+226 70 00 00 01',
-    country: 'Burkina Faso',
-    agentCode: 'BF-001',
-    isActive: true,
-    createdAt: '2024-01-15'
-  },
-  { 
-    id: '5', 
-    email: 'abibata@globalexchange.com', 
-    name: 'Abibata Zougrana', 
-    role: 'payer_agent',
-    phone: '+226 70 00 00 02',
-    country: 'Burkina Faso',
-    agentCode: 'BF-002',
-    isActive: true,
-    createdAt: '2024-01-15'
-  },
-  { 
-    id: '6', 
-    email: 'mohamadi@globalexchange.com', 
-    name: 'Mohamadi Sana', 
-    role: 'payer_agent',
-    phone: '+226 70 00 00 03',
-    country: 'Burkina Faso',
-    agentCode: 'BF-003',
-    isActive: true,
-    createdAt: '2024-01-15'
-  },
-];
-
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(() => localStorage.getItem('token'));
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isBackendAvailable, setIsBackendAvailable] = useState(false);
+
+  const refreshUser = useCallback(async () => {
+    if (!getAuthToken()) return;
+    const currentUser = await authAPI.getMe();
+    setUser(currentUser);
+  }, []);
+
+  // Actualiser le menu quand un utilisateur revient après un changement de rôle.
+  useEffect(() => {
+    if (!token) return;
+    const refresh = () => { void refreshUser().catch(() => undefined); };
+    window.addEventListener('focus', refresh);
+    const interval = window.setInterval(refresh, 60000);
+    return () => { window.removeEventListener('focus', refresh); window.clearInterval(interval); };
+  }, [token, refreshUser]);
 
   // Check backend availability and restore session on mount
   useEffect(() => {
@@ -170,30 +118,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setIsLoading(false);
         return true;
       } else {
-        // Fallback to mock login
-        console.warn('Backend non disponible - mode demo activé');
-        const foundUser = MOCK_USERS.find(u => u.email === email.toLowerCase());
-        if (foundUser) {
-          setUser(foundUser);
-          setIsLoading(false);
-          return true;
-        }
-        setError('Email ou mot de passe incorrect');
+        setError('Serveur indisponible. Réessayez lorsque la connexion sera rétablie.');
         setIsLoading(false);
         return false;
       }
     } catch (err: any) {
       setError(err.message || 'Erreur de connexion');
       setIsLoading(false);
-      
-      // Try mock login as fallback
-      const foundUser = MOCK_USERS.find(u => u.email === email.toLowerCase());
-      if (foundUser) {
-        console.warn('Fallback to mock login');
-        setUser(foundUser);
-        setError(null);
-        return true;
-      }
       
       return false;
     }
@@ -222,10 +153,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         token,
         login, 
         logout, 
-        isAuthenticated: !!user, 
+        isAuthenticated: !!user && !!token,
         isLoading,
         error,
-        isBackendAvailable
+        isBackendAvailable,
+        refreshUser
       }}
     >
       {children}

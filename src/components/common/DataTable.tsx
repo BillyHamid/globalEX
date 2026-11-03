@@ -107,7 +107,11 @@ export function DataTable<T extends { id: string }>({
                         : row[col.accessor];
                     return (
                       <td key={idx} className="px-6 py-4 text-sm text-gray-900 whitespace-nowrap">
-                        {col.render ? col.render(value, row) : String(value || '')}
+                        {col.render
+                          ? col.render(value, row)
+                          : typeof col.accessor === 'function'
+                            ? value as React.ReactNode
+                            : String(value ?? '')}
                       </td>
                     );
                   })}

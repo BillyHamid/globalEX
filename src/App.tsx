@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { MainLayout } from '@/components/Layout/MainLayout';
 import { Login } from '@/pages/Login';
+import { hasPermission } from '@/utils/roleConfig';
 
 const Dashboard = lazy(() => import('@/pages/Dashboard').then(m => ({ default: m.Dashboard })));
 const Users = lazy(() => import('@/pages/Users').then(m => ({ default: m.Users })));
@@ -48,6 +49,17 @@ const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
   return isAuthenticated ? <>{children}</> : <Navigate to="/login" />;
 };
 
+const permitted = (permission: string, children: React.ReactNode) => (
+  <PermissionRoute permission={permission}>{children}</PermissionRoute>
+);
+
+function PermissionRoute({ permission, children }: { permission: string; children: React.ReactNode }) {
+  const { user } = useAuth();
+  return hasPermission(user, permission)
+    ? <>{children}</>
+    : <p role="alert" className="rounded-lg bg-amber-50 p-4 text-amber-900">Votre rôle ne permet pas d’accéder à cette page. Utilisez le menu pour accéder aux modules autorisés.</p>;
+}
+
 function PageFallback() {
   return (
     <div className="flex min-h-[200px] items-center justify-center">
@@ -70,20 +82,20 @@ function AppRoutes() {
         }
       >
         <Route index element={<Navigate to="/dashboard" />} />
-        <Route path="dashboard" element={<Dashboard />} />
+        <Route path="dashboard" element={permitted('transfers.view', <Dashboard />)} />
         
         {/* GLOBAL EXCHANGE - Transfers */}
-        <Route path="transfers" element={<Transfers />} />
-        <Route path="transfers/new" element={<NewTransfer />} />
+        <Route path="transfers" element={permitted('transfers.view', <Transfers />)} />
+        <Route path="transfers/new" element={permitted('transfers.create', <NewTransfer />)} />
         <Route path="transfers/pending" element={<Navigate to="/transfers?status=pending" replace />} />
-        <Route path="transfers/:id" element={<TransferDetail />} />
-        <Route path="transactions/journal" element={<TransactionJournal />} />
-        <Route path="transactions/by-country" element={<CountryStats />} />
+        <Route path="transfers/:id" element={permitted('transfers.view', <TransferDetail />)} />
+        <Route path="transactions/journal" element={permitted('transfers.view', <TransactionJournal />)} />
+        <Route path="transactions/by-country" element={permitted('transfers.view', <CountryStats />)} />
         
         {/* Cash Management */}
-        <Route path="cash" element={<CashDashboard />} />
+        <Route path="cash" element={permitted('cash.view', <CashDashboard />)} />
 
-        {/* Dépenses Spéciales (admin + Zongo Razack) */}
+        {/* Dépenses spéciales : droits individuels vérifiés par la page et l'API */}
         <Route path="special-expenses" element={<SpecialExpenses />} />
 
         {/* Rapports financiers (Bernadette → validation admin) */}

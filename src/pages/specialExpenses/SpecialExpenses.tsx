@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { hasPermission } from '@/utils/roleConfig';
 import {
   specialExpensesAPI,
   type SpecialExpense,
@@ -22,13 +23,11 @@ import {
 } from 'lucide-react';
 
 // ─────────────────────────────────────────────
-// RBAC : accès admin + razack@globalexchange.com
+// RBAC : permissions effectives fournies par l'API
 // ─────────────────────────────────────────────
-const RAZACK_EMAIL = 'razack@globalexchange.com';
-
 const useIsAuthorized = () => {
   const { user } = useAuth();
-  return user?.role === 'admin' || user?.email === RAZACK_EMAIL;
+  return hasPermission(user, 'special_expenses.manage');
 };
 
 // ─────────────────────────────────────────────
@@ -52,7 +51,7 @@ export const SpecialExpenses = () => {
         <AlertCircle className="w-14 h-14 text-red-400" />
         <h2 className="text-xl font-bold text-gray-700">Accès refusé</h2>
         <p className="text-gray-500 max-w-sm">
-          Ce module est réservé à l'Admin et à Zongo Razack.
+          Demandez à un administrateur de vous attribuer l’accès spécial dans votre fiche utilisateur.
         </p>
       </div>
     );
@@ -436,7 +435,7 @@ const LoansSection = () => {
   };
 
   const myWallet = wallets.find((w) => w.userId === user?.id || w.email === user?.email);
-  const otherWallet = wallets.find((w) => w.userId !== user?.id && w.email !== user?.email);
+  const otherWallets = wallets.filter((w) => w.userId !== user?.id);
 
   // Calculer les stats depuis l'historique
   const myId = user?.id;
@@ -534,7 +533,7 @@ const LoansSection = () => {
       {showForm && (
         <LoanForm
           myWallet={myWallet}
-          otherWallet={otherWallet}
+          otherWallets={otherWallets}
           onCreated={handleCreated}
           onCancel={() => setShowForm(false)}
         />
@@ -625,12 +624,14 @@ const LoansSection = () => {
 // ─────────────────────────────────────────────
 interface LoanFormProps {
   myWallet: PersonalWallet | undefined;
-  otherWallet: PersonalWallet | undefined;
+  otherWallets: PersonalWallet[];
   onCreated: (loan: Loan) => void;
   onCancel: () => void;
 }
 
-const LoanForm = ({ myWallet, otherWallet, onCreated, onCancel }: LoanFormProps) => {
+const LoanForm = ({ myWallet, otherWallets, onCreated, onCancel }: LoanFormProps) => {
+  const [borrowerId, setBorrowerId] = useState(otherWallets.length === 1 ? otherWallets[0].userId : '');
+  const otherWallet = otherWallets.find(w => w.userId === borrowerId);
   const [amount, setAmount] = useState('');
   const [reason, setReason] = useState('');
   const [loanDate, setLoanDate] = useState(today());
@@ -645,11 +646,12 @@ const LoanForm = ({ myWallet, otherWallet, onCreated, onCancel }: LoanFormProps)
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    if (isNaN(parsedAmt) || parsedAmt <= 0) { setError('Le montant doit être un nombre positif.'); return; }
+    if (!Number.isFinite(parsedAmt) || parsedAmt <= 0) { setError('Le montant doit être un nombre positif.'); return; }
     if (!reason.trim()) { setError('Le motif est obligatoire.'); return; }
+    if (!myWallet || !otherWallet) { setError('Sélectionnez un bénéficiaire autorisé.'); return; }
     try {
       setSubmitting(true);
-      const loan = await specialExpensesAPI.createLoan({ amount: parsedAmt, reason: reason.trim(), loan_date: loanDate });
+      const loan = await specialExpensesAPI.createLoan({ amount: parsedAmt, reason: reason.trim(), loan_date: loanDate, borrower_id: otherWallet.userId });
       onCreated(loan);
     } catch (e: any) {
       setError(e.message || 'Erreur lors de la création');
@@ -661,6 +663,17 @@ const LoanForm = ({ myWallet, otherWallet, onCreated, onCancel }: LoanFormProps)
   return (
     <div className="bg-white rounded-2xl border border-blue-200 shadow-sm p-5">
       <h3 className="font-semibold text-gray-800 mb-3">Nouveau prêt</h3>
+
+      <div className="mb-4">
+        <label htmlFor="loan-borrower" className="block text-sm font-medium text-gray-700 mb-1">Bénéficiaire du prêt *</label>
+        <select id="loan-borrower" value={borrowerId} onChange={e => setBorrowerId(e.target.value)}
+          disabled={submitting || !otherWallets.length}
+          className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm">
+          <option value="">Sélectionner un utilisateur</option>
+          {otherWallets.map(wallet => <option key={wallet.userId} value={wallet.userId}>{wallet.name} ({wallet.email})</option>)}
+        </select>
+        {!otherWallets.length && <p role="status" className="mt-2 text-sm text-gray-500">Aucun autre utilisateur actif n’a accès aux prêts.</p>}
+      </div>
 
       {/* Aperçu de la transaction */}
       {myWallet && otherWallet && (
@@ -741,7 +754,7 @@ const LoanForm = ({ myWallet, otherWallet, onCreated, onCancel }: LoanFormProps)
             className="px-4 py-2 rounded-xl border border-gray-300 text-gray-700 text-sm hover:bg-gray-50 transition-colors">
             Annuler
           </button>
-          <button type="submit" disabled={submitting}
+          <button type="submit" disabled={submitting || !myWallet || !otherWallet}
             className="flex items-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white rounded-xl text-sm font-medium transition-colors shadow-sm">
             {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
             Valider le prêt

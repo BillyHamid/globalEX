@@ -8,8 +8,8 @@ export const getRoleLabel = (role: Role): string => {
   const labels: Record<Role, string> = {
     admin: 'Administrateur',
     supervisor: 'Superviseur',
-    sender_agent: 'Agent',
-    payer_agent: 'Agent',
+    sender_agent: 'Agent expéditeur',
+    payer_agent: 'Agent payeur',
   };
   return labels[role];
 };
@@ -68,6 +68,12 @@ export const menuItems: MenuItem[] = [
     roles: ['admin', 'sender_agent'],
   },
   {
+    label: 'Rôles & Permissions',
+    path: '/roles',
+    icon: 'Shield',
+    roles: ['admin'],
+  },
+  {
     label: 'Rapports financiers',
     path: '/financial-reports',
     icon: 'FileSpreadsheet',
@@ -81,78 +87,36 @@ export const menuItems: MenuItem[] = [
   },
 ];
 
-const RAZACK_EMAIL = 'razack@globalexchange.com';
 const BERNADETTE_EMAIL = 'bernadette@globalexchange.com';
 
 export const getMenuItemsForRole = (role: Role): MenuItem[] => {
   return menuItems.filter(item => item.roles.includes(role));
 };
 
-/** Menu filtré avec règles fine-grained (email) pour les modules spéciaux */
+/** Menu filtré selon les permissions effectives et les règles des rapports financiers. */
 export const getMenuItemsForUser = (user: User): MenuItem[] => {
   const isSpecialExpensesAllowed =
-    user.role === 'admin' || user.email === RAZACK_EMAIL;
+    hasPermission(user, 'special_expenses.manage');
 
   return menuItems.filter((item) => {
     if (item.path === '/special-expenses') return isSpecialExpensesAllowed;
     if (item.path === '/financial-reports') return user.email === BERNADETTE_EMAIL;
     if (item.path === '/financial-reports/admin/validation') return user.role === 'admin';
+    const permission = menuPermissions[item.path];
+    if (permission) return hasPermission(user, permission);
     return item.roles.includes(user.role);
   });
 };
 
-// Permissions par rôle
-export const rolePermissions: Record<Role, string[]> = {
-  admin: [
-    'transfers.create',
-    'transfers.view',
-    'transfers.edit',
-    'transfers.cancel',
-    'transfers.pay',
-    'agents.create',
-    'agents.view',
-    'agents.edit',
-    'agents.delete',
-    'users.create',
-    'users.view',
-    'users.edit',
-    'users.delete',
-    'reports.view',
-    'reports.export',
-    'settings.view',
-    'settings.edit',
-    'audit.view',
-  ],
-  supervisor: [
-    'transfers.view',
-    'transfers.edit',
-    'transfers.cancel',
-    'agents.view',
-    'users.view',
-    'reports.view',
-    'reports.export',
-  ],
-  // Tous les agents (USA et BF) peuvent créer des transferts ET marquer comme payé
-  sender_agent: [
-    'transfers.create',
-    'transfers.view',
-    'transfers.pay',
-    'beneficiaries.create',
-    'beneficiaries.view',
-    'senders.create',
-    'senders.view',
-  ],
-  payer_agent: [
-    'transfers.create',
-    'transfers.view',
-    'transfers.pay',
-    'beneficiaries.create',
-    'beneficiaries.view',
-    'senders.create',
-    'senders.view',
-  ],
+// Les permissions effectives viennent de l'API et incluent les accès nominatifs.
+export const hasPermission = (user: User | null | undefined, permission: string): boolean => {
+  return !!user && (user.role === 'admin' || (user.permissions || []).includes(permission));
 };
 
-export const hasPermission = (role: Role, permission: string): boolean => {
-  return rolePermissions[role]?.includes(permission) ?? false;
+const menuPermissions: Record<string, string> = {
+  '/transfers': 'transfers.view',
+  '/transfers/new': 'transfers.create',
+  '/transactions/journal': 'transfers.view',
+  '/cash': 'cash.view',
+  '/users': 'users.view',
 };

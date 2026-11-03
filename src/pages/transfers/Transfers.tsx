@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { getPendingCorridorHighlight } from '@/utils/transferCorridorDisplay';
 
-const RAZACK_EMAIL = 'razack@globalexchange.com';
+import { hasPermission } from '@/utils/roleConfig';
 
 interface TransferItem {
   id: string;
@@ -381,7 +381,7 @@ export const Transfers = () => {
         const userCountry = user?.country;
         
         const canConfirmByRole = row.status === 'pending' && 
-          (user?.role === 'sender_agent' || user?.role === 'payer_agent' || user?.role === 'admin' || user?.role === 'supervisor');
+          hasPermission(user, 'transfers.pay');
         
         let canConfirmByCountry = true;
         if (canConfirmByRole && creatorCountry && userCountry && (user?.role !== 'admin' && user?.role !== 'supervisor')) {
@@ -434,9 +434,7 @@ export const Transfers = () => {
               </button>
             )}
             {['pending', 'in_progress', 'paid', 'confirmed'].includes(row.status) &&
-              (user?.role === 'admin' ||
-                user?.role === 'supervisor' ||
-                (user?.email || '').toLowerCase() === RAZACK_EMAIL) && (
+              hasPermission(user, 'transfers.cancel') && (
               <button 
                 className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                 title={row.status === 'pending' || row.status === 'in_progress' ? 'Annuler' : 'Annuler (contre-passation comptable)'}
@@ -445,10 +443,10 @@ export const Transfers = () => {
                 <Ban className="w-4 h-4" />
               </button>
             )}
-            {user?.role === 'admin' && (
+            {hasPermission(user, 'transfers.delete') && (
               <button 
                 className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                title="Supprimer (admin uniquement)"
+                title="Supprimer"
                 onClick={() => handleDelete(row.id, row.reference)}
               >
                 <Trash2 className="w-4 h-4" />
@@ -484,7 +482,7 @@ export const Transfers = () => {
             <RefreshCw className={`w-5 h-5 ${refreshing ? 'animate-spin' : ''}`} />
           </button>
           
-          {(user.role === 'admin' || user.role === 'sender_agent' || user.role === 'payer_agent') && (
+          {hasPermission(user, 'transfers.create') && (
             <button
               onClick={() => navigate('/transfers/new')}
               className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl font-medium flex items-center gap-2 shadow-lg shadow-emerald-500/30 transition-all"

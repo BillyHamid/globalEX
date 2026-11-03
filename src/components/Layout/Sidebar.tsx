@@ -1,6 +1,6 @@
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { getMenuItemsForUser, getRoleLabel, getRoleColor } from '@/utils/roleConfig';
+import { getMenuItemsForUser, getRoleLabel, getRoleColor, hasPermission } from '@/utils/roleConfig';
 import { useMobileMenu } from './MainLayout';
 import * as LucideIcons from 'lucide-react';
 import { NotificationStatus } from '@/components/notifications/NotificationStatus';
@@ -100,7 +100,7 @@ export const Sidebar = () => {
       <div className="p-3 sm:p-4 border-t border-gray-100">
         <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Actions rapides</p>
         <div className="space-y-2">
-          {(user.role === 'sender_agent' || user.role === 'payer_agent') && (
+          {hasPermission(user, 'transfers.create') && (
             <NavLink
               to="/transfers/new"
               onClick={handleLinkClick}
@@ -110,7 +110,7 @@ export const Sidebar = () => {
               <span>Nouveau transfert</span>
             </NavLink>
           )}
-          {(user.role === 'sender_agent' || user.role === 'payer_agent') && (
+          {hasPermission(user, 'transfers.pay') && (
             <NavLink
               to="/transfers?status=pending"
               onClick={handleLinkClick}

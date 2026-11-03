@@ -1,3 +1,5 @@
+import type { Role, User } from '@/types';
+
 // API Configuration
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
@@ -143,7 +145,44 @@ export const authAPI = {
 // ==========================================
 // USERS API
 // ==========================================
+export interface RoleDefinition {
+  id: string;
+  role: Role;
+  permissions: string[];
+  usersCount: number;
+  editable: boolean;
+}
+
+export interface RolesConfiguration {
+  catalog: { id: string; group: string; label: string }[];
+  dependencies: Record<string, string[]>;
+  roles: RoleDefinition[];
+}
+
+export const rolesAPI = {
+  getAll: async () => {
+    const response = await fetchAPI<{ success: boolean; data: RolesConfiguration }>('/roles');
+    return response.data;
+  },
+  update: async (role: Role, permissions: string[]) => {
+    await fetchAPI(`/roles/${role}`, { method: 'PUT', body: JSON.stringify({ permissions }) });
+  },
+};
+
 export const usersAPI = {
+  getDirectory: async (): Promise<User[]> => {
+    const users: User[] = [];
+    let page = 1;
+    let pages = 1;
+    do {
+      const response = await usersAPI.getAll({ page, limit: 100 });
+      users.push(...response.data);
+      pages = response.pagination.pages;
+      page += 1;
+    } while (page <= pages);
+    return users;
+  },
+
   getAll: async (params?: { role?: string; isActive?: boolean; page?: number; limit?: number }) => {
     const queryString = params ? '?' + new URLSearchParams(params as any).toString() : '';
     const response = await fetchAPI<{ success: boolean; data: any[]; pagination: any }>(
@@ -257,7 +296,7 @@ export const transfersAPI = {
     return response.data;
   },
 
-  /** Transfert en attente : admin ou Razack uniquement (backend) */
+  /** Transfert en attente : permission transfers.edit vérifiée par l’API. */
   update: async (
     id: string,
     transferData: {
@@ -945,6 +984,7 @@ export const specialExpensesAPI = {
   },
 
   createLoan: async (data: {
+    borrower_id: string;
     amount: number;
     reason: string;
     loan_date: string;

@@ -30,6 +30,8 @@ export interface User {
   email: string;
   name: string;
   role: Role;
+  permissions?: string[];
+  specialAccess?: boolean;
   avatar?: string;
   phone?: string;
   country?: string;

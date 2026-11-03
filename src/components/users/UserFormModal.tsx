@@ -11,6 +11,7 @@ export interface UserFormValues {
   role: Role;
   country: string;
   agentCode: string;
+  specialAccess: boolean;
 }
 
 interface UserFormModalProps {
@@ -19,6 +20,7 @@ interface UserFormModalProps {
   onSubmit: (values: UserFormValues) => Promise<void>;
   /** Utilisateur à modifier ; si absent, le modal est en mode création */
   user?: User | null;
+  roleLocked?: boolean;
 }
 
 const ROLES: Role[] = ['admin', 'supervisor', 'sender_agent', 'payer_agent'];
@@ -31,9 +33,10 @@ const emptyForm: UserFormValues = {
   role: 'sender_agent',
   country: '',
   agentCode: '',
+  specialAccess: false,
 };
 
-export const UserFormModal = ({ isOpen, onClose, onSubmit, user }: UserFormModalProps) => {
+export const UserFormModal = ({ isOpen, onClose, onSubmit, user, roleLocked = false }: UserFormModalProps) => {
   const isEditMode = Boolean(user);
   const [form, setForm] = useState<UserFormValues>(emptyForm);
   const [loading, setLoading] = useState(false);
@@ -52,6 +55,7 @@ export const UserFormModal = ({ isOpen, onClose, onSubmit, user }: UserFormModal
             role: user.role,
             country: user.country || '',
             agentCode: user.agentCode || '',
+            specialAccess: user.specialAccess === true,
           }
         : emptyForm
     );
@@ -59,7 +63,7 @@ export const UserFormModal = ({ isOpen, onClose, onSubmit, user }: UserFormModal
 
   if (!isOpen) return null;
 
-  const handleChange = (field: keyof UserFormValues, value: string) => {
+  const handleChange = (field: keyof UserFormValues, value: string | boolean) => {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
 
@@ -93,13 +97,13 @@ export const UserFormModal = ({ isOpen, onClose, onSubmit, user }: UserFormModal
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+      <div role="dialog" aria-modal="true" aria-labelledby="user-form-title" className="bg-white rounded-xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
         <div className="p-4 sm:p-6 border-b border-gray-200 flex justify-between items-center">
-          <h3 className="text-lg sm:text-xl font-bold text-gray-900 flex items-center gap-2">
+          <h3 id="user-form-title" className="text-lg sm:text-xl font-bold text-gray-900 flex items-center gap-2">
             <UserPlus className="w-5 h-5" />
             {isEditMode ? "Modifier l'utilisateur" : 'Ajouter un utilisateur'}
           </h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
+          <button onClick={onClose} aria-label="Fermer" disabled={loading} className="text-gray-400 hover:text-gray-600 transition-colors">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -154,13 +158,14 @@ export const UserFormModal = ({ isOpen, onClose, onSubmit, user }: UserFormModal
           )}
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Rôle *</label>
+            <label htmlFor="user-role" className="block text-sm font-medium text-gray-700 mb-2">Rôle *</label>
             <select
+              id="user-role"
               value={form.role}
               onChange={(e) => handleChange('role', e.target.value)}
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 text-base"
               required
-              disabled={loading}
+              disabled={loading || roleLocked}
             >
               {ROLES.map((role) => (
                 <option key={role} value={role}>
@@ -168,6 +173,24 @@ export const UserFormModal = ({ isOpen, onClose, onSubmit, user }: UserFormModal
                 </option>
               ))}
             </select>
+            {roleLocked && <p className="mt-1 text-xs text-gray-500">Votre propre rôle administrateur est protégé.</p>}
+          </div>
+
+          <div className="rounded-lg border border-purple-200 bg-purple-50 p-3">
+            <label className="flex items-start gap-2 text-sm font-medium text-gray-800">
+              <input
+                type="checkbox"
+                checked={form.role === 'admin' || form.specialAccess}
+                onChange={(e) => handleChange('specialAccess', e.target.checked)}
+                disabled={loading || form.role === 'admin'}
+                className="mt-1 accent-purple-600"
+              />
+              Accès spécial : dépenses, prêts et gestion des transferts
+            </label>
+            <p className="mt-2 text-xs text-gray-600">
+              Autorise les dépenses spéciales, les prêts internes, la modification des transferts en attente et leur annulation.
+              {form.role === 'admin' ? ' Ces droits sont inclus dans le rôle administrateur.' : ' Ce droit est personnel, indépendant du nom et de l’email.'}
+            </p>
           </div>
 
           <div>

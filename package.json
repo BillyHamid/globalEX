@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
+    "test": "node --test test/*.test.cjs",
     "dev": "vite",
     "build": "node scripts/generate-icons.cjs && tsc && vite build",
     "preview": "vite preview",

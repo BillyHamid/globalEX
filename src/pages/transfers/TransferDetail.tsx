@@ -1,3 +1,4 @@
+import { hasPermission } from '@/utils/roleConfig';
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -65,7 +66,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }>
   cancelled: { label: 'Annulé', color: 'bg-red-100 text-red-800', icon: Ban },
 };
 
-const RAZACK_EMAIL = 'razack@globalexchange.com';
+
 
 type EditFormState = {
   senderFirstName: string;
@@ -166,9 +167,7 @@ export const TransferDetail = () => {
     !!user &&
     !!transfer &&
     ['pending', 'in_progress', 'paid', 'confirmed'].includes(transfer.status) &&
-    (user.role === 'admin' ||
-      user.role === 'supervisor' ||
-      (user.email || '').toLowerCase() === RAZACK_EMAIL);
+    hasPermission(user, 'transfers.cancel');
 
   const handleCancelTransfer = async () => {
     if (!transfer) return;
@@ -195,7 +194,7 @@ export const TransferDetail = () => {
   const canEditTransfer =
     !!user &&
     transfer?.status === 'pending' &&
-    (user.role === 'admin' || (user.email || '').toLowerCase() === RAZACK_EMAIL);
+    hasPermission(user, 'transfers.edit');
 
   const startEdit = () => {
     if (!transfer) return;
@@ -351,7 +350,7 @@ export const TransferDetail = () => {
               Annuler le transfert
             </button>
           )}
-          {user.role === 'admin' && (
+          {hasPermission(user, 'transfers.delete') && (
             <button
               onClick={handleDelete}
               className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2"
@@ -367,7 +366,7 @@ export const TransferDetail = () => {
         <div className="bg-amber-50/80 border border-amber-200 rounded-xl p-6 space-y-4">
           <h2 className="text-lg font-bold text-gray-900">Modifier le transfert (en attente)</h2>
           <p className="text-sm text-gray-600">
-            Réservé à l&apos;administrateur et à Razack. Les montants ou le corridor peuvent recalculer l&apos;écriture de caisse initiale.
+            Les montants ou le corridor peuvent recalculer l&apos;écriture de caisse initiale.
           </p>
           {editError && (
             <div className="text-sm text-red-700 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{editError}</div>
