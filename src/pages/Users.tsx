@@ -4,13 +4,14 @@ import { useAuth } from '@/contexts/AuthContext';
 import { DataTable } from '@/components/common/DataTable';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { UserFormModal, UserFormValues } from '@/components/users/UserFormModal';
+import { UserPasswordModal } from '@/components/users/UserPasswordModal';
 import { Role, User } from '@/types';
-import { Plus, Edit, Trash2, MapPin, Power } from 'lucide-react';
+import { Plus, Edit, Trash2, MapPin, Power, KeyRound } from 'lucide-react';
 import { getRoleLabel, getRoleColor, hasPermission } from '@/utils/roleConfig';
 import { usersAPI } from '@/services/api';
 
 export const Users = () => {
-  const { user: currentUser, refreshUser } = useAuth();
+  const { user: currentUser, refreshUser, logout } = useAuth();
   const canManageUsers = currentUser?.role === 'admin';
   const canViewUsers = hasPermission(currentUser, 'users.view');
   const [searchParams, setSearchParams] = useSearchParams();
@@ -20,6 +21,7 @@ export const Users = () => {
   const [error, setError] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [passwordUser, setPasswordUser] = useState<User | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
   const loadUsers = async () => {
@@ -74,6 +76,16 @@ export const Users = () => {
     }
     await loadUsers();
     setSuccess(editingUser ? 'Utilisateur, rôle et accès mis à jour.' : 'Utilisateur créé.');
+  };
+
+  const handlePasswordSubmit = async (newPassword: string, confirmPassword: string) => {
+    if (!passwordUser) return;
+    await usersAPI.resetPassword(passwordUser.id, newPassword, confirmPassword);
+    if (passwordUser.id === currentUser?.id) {
+      await logout();
+      return;
+    }
+    setSuccess(`Mot de passe de ${passwordUser.name} modifié. Cet utilisateur doit se reconnecter.`);
   };
 
   const handleDelete = async (user: User) => {
@@ -151,6 +163,14 @@ export const Users = () => {
             <Edit className="w-4 h-4" />
           </button>
           <button
+            onClick={() => { setSuccess(null); setPasswordUser(row); }}
+            className="flex items-center gap-1 whitespace-nowrap p-1 text-sm text-amber-700 hover:text-amber-800"
+            title="Modifier le mot de passe"
+            aria-label={`Modifier le mot de passe de ${row.name}`}
+          >
+            <KeyRound className="w-4 h-4" /> Mot de passe
+          </button>
+          <button
             onClick={() => handleToggleActive(row)}
             disabled={row.id === currentUser?.id}
             className="p-1 text-blue-600 hover:text-blue-700"
@@ -182,7 +202,7 @@ export const Users = () => {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Utilisateurs & Agents</h1>
-          <p className="text-gray-600">{canManageUsers ? 'Modifiez les informations et le rôle de chaque utilisateur.' : 'Consultez les utilisateurs et leurs rôles.'}</p>
+          <p className="text-gray-600">{canManageUsers ? 'Modifiez les informations, le rôle et le mot de passe de chaque utilisateur.' : 'Consultez les utilisateurs et leurs rôles.'}</p>
         </div>
         {canManageUsers && <button
           onClick={handleOpenCreate}
@@ -231,6 +251,13 @@ export const Users = () => {
         onSubmit={handleSubmit}
         user={editingUser}
         roleLocked={editingUser?.id === currentUser?.id}
+      />}
+      {canManageUsers && passwordUser && <UserPasswordModal
+        key={passwordUser.id}
+        user={passwordUser}
+        isCurrentUser={passwordUser.id === currentUser?.id}
+        onClose={() => setPasswordUser(null)}
+        onSubmit={handlePasswordSubmit}
       />}
     </div>
   );

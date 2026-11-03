@@ -216,6 +216,13 @@ export const usersAPI = {
     await fetchAPI(`/users/${id}`, { method: 'DELETE' });
   },
 
+  resetPassword: async (id: string, newPassword: string, confirmPassword: string) => {
+    await fetchAPI(`/users/${id}/password`, {
+      method: 'PUT',
+      body: JSON.stringify({ newPassword, confirmPassword }),
+    });
+  },
+
   toggleActive: async (id: string) => {
     const response = await fetchAPI<{ success: boolean; data: { isActive: boolean } }>(
       `/users/${id}/toggle-active`,
